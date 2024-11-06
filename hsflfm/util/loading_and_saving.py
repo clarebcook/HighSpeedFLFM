@@ -31,6 +31,9 @@ def _recursive_numpy_to_list(item):
     # if the item is a numpy array torch tensor , make it a list and return
     if isinstance(item, np.ndarray) or isinstance(item, torch.Tensor):
         return item.tolist()
+    
+    if isinstance(item, (np.floating, np.integer)):
+        return item.item()
 
     # if it's not a dictionary, return the item
     if not isinstance(item, dict):

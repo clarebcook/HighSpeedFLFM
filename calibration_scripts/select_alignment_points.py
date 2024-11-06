@@ -6,14 +6,12 @@ from matplotlib import pyplot as plt
 from PIL import Image
 
 calibration_folder = home_directory + "/Videos/20240427/20240427_calibration"
-calibration_filename = (
-    "delete_calibration_information"  # calibration_folder + '/calibration_information'
-)
-
+calibration_filename = "delete_calibration_information"  # calibration_folder + '/calibration_information'
 calibration_manager = CalibrationInfoManager(calibration_filename)
 
 image_numbers = calibration_manager.image_numbers
 # frequently easiest to use an ant instead of the graph
+# could clean this up to just automatically select one of the ant images
 image_filename = home_directory + '/Videos/20240427/OB_5/20240427_OB_5_alignment_ring_0.tiff' 
 
 points_dict = {}

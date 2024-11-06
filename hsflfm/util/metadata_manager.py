@@ -54,6 +54,16 @@ class MetadataManager:
         strike_data = self.get_strike_data(strike_number)
         video_filename = strike_data["VideoFileName"].values[0]
         return video_folder + "/" + video_filename
+    
+    @property
+    def match_points_filename(self):
+        folder = self.alignment_folder 
+        return folder + '/match_points'
+    
+    @property 
+    def alignment_points_filename(self):
+        folder = self.alignment_folder 
+        return folder + '/alignment_points'
 
     @property
     def light_calibration_filename(self):
