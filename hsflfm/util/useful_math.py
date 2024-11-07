@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from scipy.linalg import lstsq
 
 # from chatGPT
@@ -111,11 +112,11 @@ def procrustes_analysis(X, Y, allow_scale=True):
     transformed_points = scale * np.dot(X_centered, rotation_matrix) + Y_mean
     
     # Compute the translation
-    translation_vector = Y_mean - np.dot(X_mean, rotation_matrix)
+    translation_vector = Y_mean - np.dot(X_mean, rotation_matrix) * scale
 
     matrix = np.zeros((4, 4))
     matrix[:3, :3] = rotation_matrix.T 
-    matrix[:3, -1] = translation_vector
+    matrix[:3, -1] = translation_vector / scale
     matrix[-1, -1] = 1
                                          
     return matrix, scale, transformed_points
@@ -160,8 +161,17 @@ def project_point_on_plane(point, plane_coeffs):
         
     return plane_point
 
+def torch_matmul(M, points):
+    points = torch.asarray(points) 
+    points = torch.concatenate((points, torch.ones((points.shape[0], 1))), axis=1)
+    transformed_points = torch.matmul(M, points.T).T[:, :3]
+    return transformed_points
+
 # convenience function to multipy points of shape [N, 3] with a 4x4 matrix 
 def matmul(M, points):
+    if isinstance(M, torch.Tensor):
+        return torch_matmul(M, points)
+
     points = np.asarray(points)
     points = np.concatenate((points, np.ones((points.shape[0], 1))), axis=1) 
     transformed_points = np.linalg.matmul(M, points.T).T[:, :3]
