@@ -22,6 +22,8 @@ load_value_list = [
     "start_locations_std",
     "flow_error_at_peak",
     "average_flow_error",
+    "flow_at_peak_sq",
+    "average_flow_sq",
     "mesh_points",
     "huber_loss_at_peak",
     "average_huber_loss",
@@ -172,6 +174,9 @@ class BulkAnalyzer:
             peak_flow_diff = result_manager.peak_flow_differences()
             range_flow_diff = result_manager.flow_diff_around_strike(half_length=12)
 
+            peak_flow_sq = result_manager.peak_flow_differences()**2
+            average_flow_sq = result_manager.flow_diff_around_strike(half_length=12, square=True)
+
             peak_huber_loss = result_manager.peak_huber_loss()
             range_huber_loss = result_manager.huber_loss_around_strike(half_length=12)
 
@@ -187,6 +192,8 @@ class BulkAnalyzer:
                 start_locations_ant_std,
                 peak_flow_diff,
                 range_flow_diff,
+                peak_flow_sq,
+                average_flow_sq,
                 start_locations_mesh,
                 peak_huber_loss,
                 range_huber_loss,
@@ -215,6 +222,8 @@ class BulkAnalyzer:
             "average_flow_error",
             "huber_loss_at_peak",
             "average_huber_loss",
+            "flow_at_peak_sq",
+            "average_flow_sq",
         ]
         if array_type not in okay_keys:
             raise ValueError(

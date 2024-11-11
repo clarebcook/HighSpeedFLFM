@@ -531,16 +531,20 @@ class ResultPlotter:
     @staticmethod 
     def plot_mesh_with_points(mesh=None, opacity=0.5, color="lightgray",
                               points=None, point_values=None,
-                              points_on_surface=False,
+                              points_on_surface=False, use_display_mesh=True,
                               marker_dict={"size": 5, "opacity": 1, 
                                            "colorscale": "Turbo"}):
         if points_on_surface:
             points = ResultPlotter.move_points_to_surface(points)
 
         if mesh is None:
-            mesh = trimesh.load(display_mesh_filename)
+            if use_display_mesh:
+                mesh = trimesh.load(display_mesh_filename)
+                scale_ratio = display_mesh_scale / mesh_scale
+            else: 
+                mesh = trimesh.load(mesh_filename)
+                scale_ratio = 1
             # we're using the display mesh, so the point values need to change
-            scale_ratio = display_mesh_scale / mesh_scale
             if points is not None:
                 points = points * scale_ratio
 

@@ -12,6 +12,7 @@ from .processing_functions import (
 )
 from hsflfm.util import MetadataManager, load_split_video, get_timestamp
 from hsflfm.calibration import FLF_System
+from hsflfm.analysis import get_strike_center, sort_by_camera
 
 import numpy as np
 import torch
@@ -54,7 +55,7 @@ default_flow_settings = {
 
 default_global_movement_settings = {
     "stable_ratio": [7, 1],
-    "gm_huber_threshold": 12,
+    "gm_loss_sq_threshold": 0.0015,
 }
 
 new_keys = [
@@ -74,6 +75,7 @@ new_keys = [
     "unfiltered_flow_vectors",
     "flow_vectors",
     "iteration_losses",
+    "threshold_loss"
 ]
 
 
@@ -346,9 +348,20 @@ class StrikeProcessor:
         ]
 
         # Step 2: determine which points have low enough loss to be used
-        loss_threshold = self.global_movement_settings["gm_huber_threshold"]
-        point_loss = torch.mean(self.all_full_loss, axis=(1, 2))
-        self.low_loss_points = point_loss < loss_threshold
+        # we are using flow loss from the top two cameras
+        loss_threshold = self.global_movement_settings["gm_loss_sq_threshold"]
+        # this is just to compute the loss we want... could mvoe elsewhere
+        flow_diff_sq = (self.all_flow_predictions - self.flow_vectors)**2 
+        strike_center = get_strike_center(self.all_displacements[:, :, 2])
+        half_distance = 12 
+        start_frame = max(0, strike_center - half_distance)
+        end_frame = max(flow_diff_sq.shape[-1], strike_center + half_distance)
+        flow_diff_sq = flow_diff_sq[:, :, start_frame:end_frame]
+        _, flow_diff_sq_sorted = sort_by_camera(flow_diff_sq, treat_individually=False)
+        flow_diff_sq_top = flow_diff_sq_sorted[:, :2]
+        flow_diff_sq_top = torch.mean(flow_diff_sq_top, axis=(1, 2))
+        self.result_info["threshold_loss"] = flow_diff_sq_top
+        self.low_loss_points = flow_diff_sq_top < loss_threshold
 
         # Step 3: use stable ratio to give weighting to points
         stable_ratio = self.global_movement_settings["stable_ratio"]

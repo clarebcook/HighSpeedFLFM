@@ -241,16 +241,20 @@ def get_point_locations(system, match_points, remove_imprecise_vals=True):
             x1 = point_cam1[0] - slope0_cam1[0] * plane_from_dx
             y1 = point_cam1[1] - slope1_cam1[0] * plane_from_dy 
             
-            # Then I can switch these to mm, using the magnification at the reference plane
-            # and the known pixel shift between cameras at the reference plane
-            shiftx_cam0, shifty_cam0 = system.get_pixel_shifts(cam_num0, [x0], [y0])
+            # Then shift the pixel values to their location in the reference camera
+            # ideally we would use x0, x1, y0, y1 instead of point_cam0 and point_cam1
+            # because inter-camera shifts are measured at the reference plane
+            # but we do it this way to prevent large height estimation errors in plane_from_dx OR plane_from_dy
+            # from affecting estimations in the other dimension
+            shiftx_cam0, shifty_cam0 = system.get_pixel_shifts(cam_num0, [point_cam0[0]], [point_cam0[1]])
             x0 = x0 + shiftx_cam0[0]
             y0 = y0 + shifty_cam0[0]
             
-            shiftx_cam1, shifty_cam1 = system.get_pixel_shifts(cam_num1, [x1], [y1])
+            shiftx_cam1, shifty_cam1 = system.get_pixel_shifts(cam_num1, [point_cam1[0]], [point_cam1[1]])
             x1 = x1 + shiftx_cam1[0]
             y1 = y1 + shifty_cam1[0]
-            # and I guess I'll just get magnificaiton at the reference camera
+
+            # to switch to mm, use the magnificaiton at the reference camera
             # since we would've already taken into account differences in magnificaiton
             # in the shift to the reference camera
             pixel_size_m = system.calib_manager.pixel_size
@@ -307,41 +311,78 @@ default_flow_parameters = {
         "pyr_scale": 0.5,
         "levels": 3,
         "winsize": 11,
-        "iterations": 3,
-        "poly_n": 15,
-        "poly_sigma": 1.2,
+        "iterations": 5,
+        "poly_n": 5,
+        "poly_sigma": 0.8,
         "flags": 0
     }
 
 # this is primarily used to get new start point locations
 # for a video, based off a previous alignment image
-def match_points_between_images(prev_image, new_image, points, flow_parameters=None,
-                                average_range=3):
+def match_points_between_images(prev_image, new_image, points, flow_parameters=None):
     if flow_parameters is None: 
         flow_parameters = default_flow_parameters
 
     flow_dict = flow_parameters
+
+    buffer = 11 
+    minx = int(np.min(points[:, 0]) - buffer)
+    maxx = int(np.max(points[:, 0]) + buffer)
+    miny = int(np.min(points[:, 1]) - buffer)
+    maxy = int(np.max(points[:, 1]) + buffer)
+
+    prev_image = prev_image[minx:maxx, miny:maxy]
+    new_image = new_image[minx:maxx, miny:maxy]
 
     flow_dict["prev"] = prev_image
     flow_dict["next"] = new_image
     flow_dict["flow"] = None
 
     flow = cv2.calcOpticalFlowFarneback(**flow_dict)
-    x_flows = []
-    y_flows = []
-    for i, point in enumerate(points):
-        start0 = int(point[0]) - average_range
-        end0 = int(point[0]) + average_range
-        start1 = int(point[1]) - average_range
-        end1 = int(point[1]) + average_range
-        x_flow = np.mean(flow[start0:end0, start1:end1, 1])
-        y_flow = np.mean(flow[start0:end0, start1:end1, 0])
+    mp = points - [minx, miny]
+    mp = mp.astype(int)
+    flow_values = flow[mp[:, 0], mp[:, 1]]
 
-        x_flows.append(x_flow)
-        y_flows.append(y_flow)
-    # get the new points
-    new_points = []
-    for i, p in enumerate(points):
-        new_points.append([p[0] + x_flows[i], p[1] + y_flows[i]])
-    
+    new_points = points + flow_values
     return new_points
+
+
+if __name__ == "__main__":
+    from hsflfm.util import MetadataManager, load_dictionary, procrustes_analysis
+    from hsflfm.calibration import FLF_System
+    from matplotlib import pyplot as plt
+    from hsflfm.processing import Aligner
+
+    specimen_number = "20220427_OB_4"
+    manager = MetadataManager(specimen_number)
+
+    strike_match_points = {}
+    for cam in range(3):
+        prev_image = manager.get_start_images(strike_number=1)[cam]
+        new_image = manager.get_start_images(strike_number=3)[cam]
+
+        match_points = np.asarray(load_dictionary(manager.match_points_filename)[cam])[:, :2]
+        new_points = match_points_between_images(prev_image, new_image, match_points)
+
+        strike_match_points[cam] = new_points
+
+    strike_locations = get_point_locations(
+        FLF_System(manager.calibration_filename), strike_match_points)
+    match_points = load_dictionary(manager.match_points_filename)
+    locations = get_point_locations(
+        FLF_System(manager.calibration_filename), match_points)
+    
+
+    A_cam2_to_cam1, _, transformed_points = procrustes_analysis(
+                strike_locations,
+                locations,
+                allow_scale=False,
+            )
+
+    diff = locations - transformed_points
+    distances = np.linalg.norm(diff, axis=1)
+
+
+
+    aligner = Aligner(specimen_number)
+    A, smp, pn, bn = aligner.align_strike(5)

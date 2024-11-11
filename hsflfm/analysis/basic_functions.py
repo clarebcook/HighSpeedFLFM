@@ -20,7 +20,7 @@ def get_peak_indices(displacements):
 
     for i in range(len(displacements)):
         line_d = derivs[i, strike_center:]
-        stop_point = -1
+        stop_point = displacements.shape[1] - 1
         for index, value in enumerate(line_d):
             if torch.sign(value) != torch.sign(line_d[0]):
                 stop_point = index + strike_center

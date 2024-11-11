@@ -17,7 +17,11 @@ from hsflfm.util import (
     rot_trans_from_matrix,
 )
 
-from .processing_functions import get_point_locations, match_points_between_images
+from .processing_functions import (
+    get_point_locations,
+    match_points_between_images,
+    world_frame_to_pixel,
+)
 
 import trimesh
 import numpy as np
@@ -35,13 +39,13 @@ mesh_scale = 100
 default_alignment_settings = {
     "vertex_sample_density": 100,
     "refinement_bounds": [
-        [0.8, 1.3],  # x
-        [0.8, 1.3],  # y
-        [0.9, 1.2],  # z - limited more to prevent points going to the center
-        [0.8, 1.3],  # roll
-        [0.8, 1.3],  # pitch
-        [0.8, 1.3],  # yaw
-        [0.8, 1.3],  # scale
+        0.2,  # [0.8, 1.3],  # x
+        0.2,  # [0.8, 1.3],  # y
+        0.2,  # [0.9, 1.2],  # z - limited more to prevent points going to the center
+        0.26,  # [0.2, 3],  # roll
+        0.26,  # [0.2, 3],  # pitch
+        0.26,  # [0.2, 3],  # yaw
+        200,  # [0.8, 1.3],  # scale
     ],
     "scale_weight": 1e11,
     "huber_delta": 4000,
@@ -65,7 +69,7 @@ save_keys = [
     "point_numbers",
     "removed_points",
     "specimen_number",
-    "strike_number"
+    "strike_number",
 ]
 
 
@@ -123,19 +127,85 @@ class Aligner:
         return mesh_points * self.mesh_scale
 
     # different arguments for easier minimization
-    def _move_points_to_mesh(self, vals, camera_points):
+    def _move_points_to_mesh(self, vals, camera_points, from_inverse=False):
         x, y, z, roll, pitch, yaw, scale = vals
         M = matrix_from_rot_trans(x, y, z, roll, pitch, yaw)
+        if from_inverse:
+            M = np.linalg.inv(M)
+
         return self.move_points_to_mesh(M, scale, camera_points)
 
-    def _minimization_function(self, vals, camera_points, tree):
-        mesh_points = self._move_points_to_mesh(vals, camera_points=camera_points)
-        scale = vals[-1]
+    # key_feature_pixels should be 4x2 array
+    # containing pixel locations where the key features are projected to
+    # with some initial value for A and s.
+    # deviation from these points can be penalized.
+    # maybe just in a linear way for now
+    def _minimization_function(
+        self, vals, camera_points, tree, init_vals=None, key_feature_pixels=None
+    ):
+        num = 1
+        vals[3] = vals[3] * num
+        vals[4] = vals[4] * num
+        # vals[5] = vals[5] * num
+        mesh_points = self._move_points_to_mesh(
+            vals, camera_points=camera_points, from_inverse=True
+        )
+        # scale = vals[-1]
 
         distances, _ = tree.query(mesh_points)
         weight = self.alignment_settings["scale_weight"]
         huber_delta = self.alignment_settings["huber_delta"]
-        loss = np.mean(scipy.special.huber(huber_delta, distances)) + weight * 1 / scale
+
+        # penalize deviation from initial value
+        if init_vals is not None:
+            # should have shape of (7)
+            val_diff = np.abs(np.asarray(vals) - np.asarray(init_vals))
+            weights = np.asarray([1e-2, 1e-2, 1e-2, 0, 0, 1e1, 1e-7]) * 5e3
+            dev_loss = val_diff**2 * weights
+            dev_loss = np.mean(dev_loss)
+        else:
+            dev_loss = 0
+        # dev_loss = 0
+
+        # penalize drastically changing where the key values
+        # FROM THE MESH
+        # project onto the images
+        if key_feature_pixels is not None:
+            weight = 1
+            new_pixel_locs = np.zeros_like(key_feature_pixels)
+            s = vals[-1]
+            A = matrix_from_rot_trans(
+                vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]
+            )
+            for i, p in enumerate(key_features_ant.values()):
+                p = np.asarray(p) / s
+                cam_point = matmul(np.linalg.inv(A), p[None]).squeeze()
+                pixel = world_frame_to_pixel(self.system, cam_point)
+                new_pixel_locs[i] = np.asarray(pixel).squeeze()
+            diff = key_feature_pixels - new_pixel_locs
+            norm = np.linalg.norm(diff, axis=1)
+            pixel_loss = weight * np.mean(norm)
+        # DON'T USE FOR NOW
+        pixel_loss = 0
+
+        # print(
+        #     np.mean(scipy.special.huber(huber_delta, distances)),
+        #     weight * 1 / scale,
+        #     dev_loss,
+        # )
+        base_weight = 1e-6
+        base_loss = scipy.special.huber(huber_delta, distances)
+        # HACK HACK HACK UNDO THIS
+        base_loss[2] = 0
+        base_loss = np.mean(base_loss)
+        base_loss = base_loss * base_weight
+        loss = (
+            base_loss
+            + pixel_loss
+            # + weight * 1 / scale
+            + dev_loss
+        )
+        # print(base_loss, dev_loss)
         return loss
 
     def refine_matrix(
@@ -147,26 +217,51 @@ class Aligner:
         )
         tree = KDTree(sample_vertices)
 
-        x, y, z, roll, pitch, yaw = rot_trans_from_matrix(A_cam_ant_init)
+        # we'll refine from the ant POV
+        A_ant_cam_init = np.linalg.inv(A_cam_ant_init)
+        x, y, z, roll, pitch, yaw = rot_trans_from_matrix(A_ant_cam_init)
 
+        num = 1
         init_guess = np.asarray([x, y, z, roll, pitch, yaw, ant_scale_init])
-        bounds = np.asarray(self.alignment_settings["refinement_bounds"])
-        bounds[:, 0] *= init_guess
-        bounds[:, 1] *= init_guess
+        init_guess[3:5] = init_guess[3:5] / num
+        bounds = np.zeros((init_guess.shape[0], 2))
+        bounds[:, 0] = init_guess + self.alignment_settings["refinement_bounds"]
+        bounds[:, 1] = init_guess - self.alignment_settings["refinement_bounds"]
 
         if not change_scale:
             bounds[-1, 0] = init_guess[-1]
             bounds[-1, 1] = init_guess[-1]
         bounds = np.sort(bounds, axis=1)
 
+        # for use in loss computation
+        # figure out the pixel locations the key features project to
+        # using ant_scale_init and A_cam_ant_init
+        key_feature_pixels = np.zeros((len(key_features_ant), 2))
+        for i, p in enumerate(key_features_ant.values()):
+            p = np.asarray(p) / ant_scale_init
+            cam_point = matmul(np.linalg.inv(A_cam_ant_init), [p])[0]
+            pixel = np.asarray(world_frame_to_pixel(self.system, cam_point)).squeeze()
+            key_feature_pixels[i] = pixel
+
         min_function = functools.partial(
-            self._minimization_function, camera_points=camera_points, tree=tree
+            self._minimization_function,
+            camera_points=camera_points,
+            tree=tree,
+            init_vals=init_guess / num,
+            key_feature_pixels=key_feature_pixels,
         )
 
         res = minimize(fun=min_function, x0=init_guess, bounds=bounds)
         x2, y2, z2, roll2, pitch2, yaw2, scale2 = res.x
 
+        roll2 = roll2 * num
+        pitch2 = pitch2 * num
+        # yaw2 = yaw2 * num
+
         A = matrix_from_rot_trans(x2, y2, z2, roll2, pitch2, yaw2)
+
+        # switch back
+        A = np.linalg.inv(A)
         return A, scale2
 
     def align_strike(self, strike_number):
@@ -176,12 +271,12 @@ class Aligner:
         threshold = self.alignment_settings["point_error_cutoff"]
 
         strike_match_points = {}
-        prev_images = self.data_manager.dark_calibration_images
+        prev_images = self.data_manager.get_start_images(strike_number=1)
         new_images = self.data_manager.get_start_images(strike_number)
         for key, prev_image in prev_images.items():
             new_image = new_images[key]
             new_points = match_points_between_images(
-                prev_image, new_image, np.asarray(self.match_points[key])
+                prev_image, new_image, np.asarray(self.match_points[key])[:, :2]
             )
             strike_match_points[key] = new_points
 
@@ -267,7 +362,7 @@ class Aligner:
             "removed_points": bad_numbers,
             "ant_scale": self.ant_scale,
             "specimen_number": self.specimen_name,
-            "strike_number": strike_number
+            "strike_number": strike_number,
         }
 
         for key in save_keys:
