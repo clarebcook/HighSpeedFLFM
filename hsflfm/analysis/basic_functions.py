@@ -70,20 +70,20 @@ def get_random_percentile_index(array, start, stop):
 def convert_to_percentile(array):
     return np.vectorize(lambda x: stats.percentileofscore(array, x))(array)
 
-# this is to bring us from a point in the world/camera frame of reference
-# to a pixel in a camera
-def world_frame_to_pixel(system, point, camera=2):
-    # use the magnification at that z-plane to switch x, y value back to pixels 
-    mag0 = system.get_magnification_at_plane(camera_number=camera, plane_mm=point[2], dim=0)
-    mag1 = system.get_magnification_at_plane(camera_number=camera, plane_mm=point[2], dim=1)
-    
-    pixel_size_m = system.calib_manager.pixel_size
-    pixels = (point[0] * mag0 / (pixel_size_m * 1e3), point[1] * mag1 / (pixel_size_m * 1e3))
-    
-    # then use height and calibration model to find the pixel
-    # just using the reference camera to make things easier 
-    ref_camera = system.reference_camera
-    v0, v1 = system.get_shift_slopes(ref_camera, [pixels[0]], [pixels[1]])
-    pixels = (pixels[0] - point[2] * v0, pixels[1] - point[2] * v1)
-    
-    return pixels
+# # this is to bring us from a point in the world/camera frame of reference
+# # to a pixel in a camera
+# def world_frame_to_pixel(system, point, camera=2):
+#     # use the magnification at that z-plane to switch x, y value back to pixels 
+#     mag0 = system.get_magnification_at_plane(camera_number=camera, plane_mm=point[2], dim=0)
+#     mag1 = system.get_magnification_at_plane(camera_number=camera, plane_mm=point[2], dim=1)
+#     
+#     pixel_size_m = system.calib_manager.pixel_size
+#     pixels = (point[0] * mag0 / (pixel_size_m * 1e3), point[1] * mag1 / (pixel_size_m * 1e3))
+#     
+#     # then use height and calibration model to find the pixel
+#     # just using the reference camera to make things easier 
+#     ref_camera = system.reference_camera
+#     v0, v1 = system.get_shift_slopes(ref_camera, [pixels[0]], [pixels[1]])
+#     pixels = (pixels[0] - point[2] * v0, pixels[1] - point[2] * v1)
+#     
+#     return pixels

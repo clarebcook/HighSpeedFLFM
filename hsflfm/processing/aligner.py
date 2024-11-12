@@ -39,18 +39,39 @@ mesh_scale = 100
 default_alignment_settings = {
     "vertex_sample_density": 100,
     "refinement_bounds": [
-        0.2,  # [0.8, 1.3],  # x
-        0.2,  # [0.8, 1.3],  # y
-        0.2,  # [0.9, 1.2],  # z - limited more to prevent points going to the center
-        0.26,  # [0.2, 3],  # roll
-        0.26,  # [0.2, 3],  # pitch
-        0.26,  # [0.2, 3],  # yaw
-        200,  # [0.8, 1.3],  # scale
+        0.4,   # x (mm)
+        0.4,   # y (mm)
+        0.4,   # z (mm)
+        0.26,  # roll (rad)
+        0.26,  # pitch (rad)
+        0.26,  # yaw (rad)
+        200,   # scale (unitless)
     ],
     "scale_weight": 1e11,
     "huber_delta": 4000,
     "point_error_cutoff": 0.025,  # mm
     "use_init_scale": True,
+    "base_align_point_names": [
+        "head_base",
+        "eye_tip",
+        "under_eye_ridge",
+        "ridge_top",
+    ],  # , "eye_back_tip"]
+    # for x, y, z, roll, pitch, yaw, scale
+    "deviation_weights": np.asarray(
+        [5e1, 5e1, 5e1, 0, 0, 5e4, 5e-4]),
+    "base_loss_weight": 1e-6,
+}
+
+# individual start points
+# for a few specific samples, the base alignment is far enough off
+# that these start locations/angles were manually selected for fine refinement
+# order is [x, y, z, roll, pitch, yaw, scale]
+# NOTE: these are rotations/translations FROM ant TO camera
+default_individual_base_alignment = {
+    "20220422_OB_1": [3.0, 1.77, -0.366, 0.00353, -0.3525, -2.96, 1727.69627255],
+    "20240502_OB_2": [2.819, 1.647, -0.125, -0.120771, -0.31184, -2.9792, 1867.32301648],
+    "20240507_OB_2": [3.056, 1.825, -0.19818, -0.14607, -0.29805, 2.97, 1502.546848]
 }
 
 save_keys = [
@@ -70,11 +91,16 @@ save_keys = [
     "removed_points",
     "specimen_number",
     "strike_number",
+    "base_alignment_values", 
 ]
 
 
+# if "use_individual_base_alignment" is False, "base_alignment_values" won't be used
+# if "individual_base_alignment" is None, the values will pull from "default_individual_base_alignment"
+# and will just use the result of normal base alignment if values are not specified there
 class Aligner:
-    def __init__(self, specimen_name, alignment_settings={}):
+    def __init__(self, specimen_name, alignment_settings={},
+                 use_individual_base_alignment=True, base_alignment_values=None):
         self.mesh_filename = mesh_filename
         self.mesh_scale = mesh_scale
         self.M_mesh_ant = M_mesh_ant
@@ -85,15 +111,38 @@ class Aligner:
         self.data_manager = MetadataManager(specimen_number=specimen_name)
 
         self.match_points = load_dictionary(self.data_manager.match_points_filename)
-        self.alignment_points = load_dictionary(
-            self.data_manager.alignment_points_filename
-        )
+        alignment_points = load_dictionary(self.data_manager.alignment_points_filename)
 
         self.system = FLF_System(self.data_manager.calibration_filename)
 
         self.alignment_settings = default_alignment_settings
         for key, value in alignment_settings.items():
             self.alignment_settings[key] = value
+
+        if not use_individual_base_alignment:
+            self.base_alignment_values = None 
+        elif base_alignment_values is None and self.specimen_name in default_individual_base_alignment:
+            self.base_alignment_values = default_individual_base_alignment[self.specimen_name]
+        else:
+            self.base_alignment_values = base_alignment_values
+
+        # this should be cleaned up, but for now, we know the points are in a certain order
+        # and we will keep only those
+        self.alignment_points = {}
+        features = self.alignment_settings["base_align_point_names"]
+        for cam_num, points in alignment_points.items():
+            new_points = np.zeros((len(features), 2))
+            points = np.asarray(points)
+            # j = 0
+            for i, feature_name in enumerate(key_features_ant.keys()):
+                new_idx = np.where(np.asarray(features) == feature_name)[0]
+                if len(new_idx) < 1:
+                    continue
+
+                # if feature_name in features:
+                new_points[new_idx[0]] = points[i, :2]
+                # j = j + 1
+            self.alignment_points[cam_num] = new_points
 
         self.stable_points = None
         self.A_cam_ant = None
@@ -103,12 +152,16 @@ class Aligner:
     def point_camera_locations(self):
         return get_point_locations(self.system, self.match_points)
 
+    @property
+    def key_feature_camera_locations(self):
+        return get_point_locations(self.system, self.alignment_points)
+
     def run_base_alignment(self):
         # location of the alignment points in camera coordinates
         alignment_point_cam_locs = get_point_locations(
             self.system, self.alignment_points
         )
-        point_name_list = ["head_base", "eye_tip", "under_eye_ridge", "ridge_top"]
+        point_name_list = self.alignment_settings["base_align_point_names"]
         alignment_point_ant_locs = [key_features_ant[i] for i in point_name_list]
         A_cam_to_ant, ant_scale, _ = procrustes_analysis(
             alignment_point_cam_locs, alignment_point_ant_locs
@@ -141,71 +194,29 @@ class Aligner:
     # deviation from these points can be penalized.
     # maybe just in a linear way for now
     def _minimization_function(
-        self, vals, camera_points, tree, init_vals=None, key_feature_pixels=None
+        self, vals, camera_points, tree, init_vals=None  # , key_feature_pixels=None
     ):
-        num = 1
-        vals[3] = vals[3] * num
-        vals[4] = vals[4] * num
-        # vals[5] = vals[5] * num
         mesh_points = self._move_points_to_mesh(
             vals, camera_points=camera_points, from_inverse=True
         )
-        # scale = vals[-1]
-
-        distances, _ = tree.query(mesh_points)
-        weight = self.alignment_settings["scale_weight"]
-        huber_delta = self.alignment_settings["huber_delta"]
 
         # penalize deviation from initial value
         if init_vals is not None:
             # should have shape of (7)
             val_diff = np.abs(np.asarray(vals) - np.asarray(init_vals))
-            weights = np.asarray([1e-2, 1e-2, 1e-2, 0, 0, 1e1, 1e-7]) * 5e3
+            weights = self.alignment_settings["deviation_weights"]
             dev_loss = val_diff**2 * weights
             dev_loss = np.mean(dev_loss)
         else:
             dev_loss = 0
-        # dev_loss = 0
 
-        # penalize drastically changing where the key values
-        # FROM THE MESH
-        # project onto the images
-        if key_feature_pixels is not None:
-            weight = 1
-            new_pixel_locs = np.zeros_like(key_feature_pixels)
-            s = vals[-1]
-            A = matrix_from_rot_trans(
-                vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]
-            )
-            for i, p in enumerate(key_features_ant.values()):
-                p = np.asarray(p) / s
-                cam_point = matmul(np.linalg.inv(A), p[None]).squeeze()
-                pixel = world_frame_to_pixel(self.system, cam_point)
-                new_pixel_locs[i] = np.asarray(pixel).squeeze()
-            diff = key_feature_pixels - new_pixel_locs
-            norm = np.linalg.norm(diff, axis=1)
-            pixel_loss = weight * np.mean(norm)
-        # DON'T USE FOR NOW
-        pixel_loss = 0
-
-        # print(
-        #     np.mean(scipy.special.huber(huber_delta, distances)),
-        #     weight * 1 / scale,
-        #     dev_loss,
-        # )
-        base_weight = 1e-6
+        distances, _ = tree.query(mesh_points)
+        base_weight = self.alignment_settings["base_loss_weight"]
+        huber_delta = self.alignment_settings["huber_delta"]
         base_loss = scipy.special.huber(huber_delta, distances)
-        # HACK HACK HACK UNDO THIS
-        base_loss[2] = 0
         base_loss = np.mean(base_loss)
         base_loss = base_loss * base_weight
-        loss = (
-            base_loss
-            + pixel_loss
-            # + weight * 1 / scale
-            + dev_loss
-        )
-        # print(base_loss, dev_loss)
+        loss = base_loss + dev_loss
         return loss
 
     def refine_matrix(
@@ -221,9 +232,7 @@ class Aligner:
         A_ant_cam_init = np.linalg.inv(A_cam_ant_init)
         x, y, z, roll, pitch, yaw = rot_trans_from_matrix(A_ant_cam_init)
 
-        num = 1
         init_guess = np.asarray([x, y, z, roll, pitch, yaw, ant_scale_init])
-        init_guess[3:5] = init_guess[3:5] / num
         bounds = np.zeros((init_guess.shape[0], 2))
         bounds[:, 0] = init_guess + self.alignment_settings["refinement_bounds"]
         bounds[:, 1] = init_guess - self.alignment_settings["refinement_bounds"]
@@ -233,30 +242,15 @@ class Aligner:
             bounds[-1, 1] = init_guess[-1]
         bounds = np.sort(bounds, axis=1)
 
-        # for use in loss computation
-        # figure out the pixel locations the key features project to
-        # using ant_scale_init and A_cam_ant_init
-        key_feature_pixels = np.zeros((len(key_features_ant), 2))
-        for i, p in enumerate(key_features_ant.values()):
-            p = np.asarray(p) / ant_scale_init
-            cam_point = matmul(np.linalg.inv(A_cam_ant_init), [p])[0]
-            pixel = np.asarray(world_frame_to_pixel(self.system, cam_point)).squeeze()
-            key_feature_pixels[i] = pixel
-
         min_function = functools.partial(
             self._minimization_function,
             camera_points=camera_points,
             tree=tree,
-            init_vals=init_guess / num,
-            key_feature_pixels=key_feature_pixels,
+            init_vals=init_guess,
         )
 
         res = minimize(fun=min_function, x0=init_guess, bounds=bounds)
         x2, y2, z2, roll2, pitch2, yaw2, scale2 = res.x
-
-        roll2 = roll2 * num
-        pitch2 = pitch2 * num
-        # yaw2 = yaw2 * num
 
         A = matrix_from_rot_trans(x2, y2, z2, roll2, pitch2, yaw2)
 
@@ -309,7 +303,15 @@ class Aligner:
         return A_cam2_to_cam1, strike_match_points, point_numbers, bad_numbers
 
     def run_strike1_alignment(self):
-        A_init, scale_init = self.run_base_alignment()
+        if self.base_alignment_values is None:
+            A_init, scale_init = self.run_base_alignment()
+        else:
+            bav = np.asanyarray(self.base_alignment_values)
+            scale_init = bav[-1] 
+            x, y, z, roll, pitch, yaw = bav[:-1]
+            A_ = matrix_from_rot_trans(x, y, z, roll, pitch, yaw)
+            A_init = np.linalg.inv(A_)
+
         A_cam_ant, scale = self.refine_matrix(
             A_init,
             scale_init,
@@ -363,6 +365,7 @@ class Aligner:
             "ant_scale": self.ant_scale,
             "specimen_number": self.specimen_name,
             "strike_number": strike_number,
+            "base_alignment_values": self.base_alignment_values
         }
 
         for key in save_keys:

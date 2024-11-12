@@ -1,4 +1,5 @@
 **\__pycache__
 **\.ipynb_checkpoints
 **\.DS_Store
-temporary_result_storage
+temporary_result_storage*
+temp_loaded_results*

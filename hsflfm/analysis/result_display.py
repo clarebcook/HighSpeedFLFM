@@ -2,7 +2,7 @@ from hsflfm.ant_model import (mesh_filename, mesh_with_mandibles_filename,
                               mesh_scale, display_mesh_scale)
 from hsflfm.config import home_directory 
 from .bulk_analyzer import ResultManager
-from .basic_functions import world_frame_to_pixel
+from hsflfm.processing import world_frame_to_pixel
 from hsflfm.util import load_split_video, MetadataManager
 from hsflfm.calibration import FLF_System
 

@@ -1,3 +1,8 @@
+# This GUI is a work in process
+# but can be used for manual alignment of the ant images
+# the output of this would typically serve as a start point
+# for fine alignment
+
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
@@ -33,8 +38,9 @@ sample_vertices, _ = trimesh.sample.sample_surface(
 )
 tree = KDTree(sample_vertices)
 
-aligner = Aligner("20220427_OB_4")
-A_base, s_base = aligner.run_strike1_alignment()  # run_base_alignment()
+aligner = Aligner("20240507_OB_2")
+#A_base, s_base = aligner.run_strike1_alignment()  
+A_base, s_base = aligner.run_base_alignment()
 mp1 = aligner.move_points_to_mesh(A_base, s_base, aligner.point_camera_locations)
 
 # Create the figure with a static mesh and dynamic points

@@ -1,4 +1,6 @@
-# file description
+# This GUI is used to manually match points between the three multi-perspective images
+# 2024/11/12
+# more cleaning needs to be done before this should be used as more than a demo script
 
 # import
 from hsflfm.util import MetadataManager, load_dictionary, save_dictionary
@@ -15,11 +17,11 @@ import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
 
 # specify specimen name
-specimen_number = "20240506_OB_3"
+specimen_number = "20220422_OB_1"
 data_manager = MetadataManager(specimen_number=specimen_number)
 
 # specify if we're selecting alignment points or paint dots
-point_type = "alignment"
+point_type = "paint"
 type_list = ["alignment", "paint"]
 
 if point_type not in type_list:
@@ -34,7 +36,13 @@ assert os.path.exists(save_folder)
 
 if point_type == "alignment":
     name = "alignment_points"
-    point_types = ["head_base", "eye_tipe", "under_eye_ridge", "ridge_top"]
+    point_types = [
+        "head_base",
+        "eye_tipe",
+        "under_eye_ridge",
+        "ridge_top",
+        "eye_back_tip",
+    ]
 elif point_type == "paint":
     name = "match_points"
     point_types = None
@@ -105,15 +113,14 @@ elif point_type == "paint":
 
 heights = torch.linspace(-3, 3, 200, dtype=torch.float32)
 volume = torch.zeros((len(heights), images[0].shape[0], images[0].shape[1], 3))
-grids = torch.zeros((3, len(heights), images[0].shape[0], 
-                     images[0].shape[1], 2))
+grids = torch.zeros((3, len(heights), images[0].shape[0], images[0].shape[1], 2))
 for cam_num, image in images.items():
     image = torch.from_numpy(image[None, None]).to(torch.float32)
 
     ss_map = warped_ss_maps[[cam_num]].to(torch.float32)
     ii_map = inv_inter_camera_maps[[cam_num]].to(torch.float32)
     warp_volume, grid = generate_warp_volume(image, heights, ss_map, ii_map)
-    warp_volume = warp_volume.squeeze() 
+    warp_volume = warp_volume.squeeze()
     grid = grid.squeeze()
 
     volume[:, :, :, cam_num] = warp_volume
@@ -126,20 +133,17 @@ volume = volume.numpy()
 
 
 class FrameViewer(QtWidgets.QWidget):
-    def __init__(self, save_name, system, volume, heights, grid_volume,
-                 point_types):
+    def __init__(self, save_name, system, volume, heights, grid_volume, point_types):
         super().__init__()
-        # self.data = ss_volume
         self.heights = heights
-        self.volume = volume 
+        self.volume = volume
         self.grid_volume = grid_volume
-        # self.image_shape = image_shape
         self.current_frame = 0
         self.point_types = point_types
         self.point_number = 0
         self.save_name = save_name
 
-        self.system = system 
+        self.system = system
         self.info_manager = system.calib_manager
         camera_numbers = info_manager.image_numbers
         if os.path.exists(save_name):
@@ -236,9 +240,9 @@ class FrameViewer(QtWidgets.QWidget):
 
         # this is currently only set up to work with three camreas
         # this will translate points back into space
-        shift_map0 = self.grid_volume[0][self.current_frame]  
-        shift_map1 = self.grid_volume[1][self.current_frame] 
-        shift_map2 = self.grid_volume[2][self.current_frame]  
+        shift_map0 = self.grid_volume[0][self.current_frame]
+        shift_map1 = self.grid_volume[1][self.current_frame]
+        shift_map2 = self.grid_volume[2][self.current_frame]
 
         y_cam0_norm, x_cam0_norm = shift_map0[x_vol_pix, y_vol_pix]
         y_cam1_norm, x_cam1_norm = shift_map1[x_vol_pix, y_vol_pix]
@@ -282,7 +286,7 @@ class FrameViewer(QtWidgets.QWidget):
 
         save_dictionary(self.match_points, self.save_name)
         self.add_point_to_volume(self.match_points)
-        
+
         self.point_number = self.point_number + 1
         if self.point_types is not None:
             self.instruction_label.setText(self.point_types[self.point_number])
@@ -292,11 +296,13 @@ class FrameViewer(QtWidgets.QWidget):
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    viewer = FrameViewer(save_name=save_name,
-                         system=system,
-                         volume=volume,
-                         heights=heights,
-                         grid_volume=grids,
-                         point_types=point_types)
+    viewer = FrameViewer(
+        save_name=save_name,
+        system=system,
+        volume=volume,
+        heights=heights,
+        grid_volume=grids,
+        point_types=point_types,
+    )
     viewer.show()
     sys.exit(app.exec_())
