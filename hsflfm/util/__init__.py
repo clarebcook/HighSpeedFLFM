@@ -12,4 +12,4 @@ __all__ = ["estimate_plane", "project_point_on_plane", "matmul",
            "display_with_lines", "play_video", "MetadataManager",
            "load_video", "load_split_video", "procrustes_analysis",
            "matrix_from_rot_trans", "rot_trans_from_matrix",
-           "get_timestamp"]
+           "get_timestamp", "cross_image"]

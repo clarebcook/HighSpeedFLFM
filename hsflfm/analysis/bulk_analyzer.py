@@ -10,6 +10,7 @@ from .basic_functions import (
 from tqdm import tqdm
 import torch
 import numpy as np
+from scipy.spatial import cKDTree
 
 load_value_list = [
     "specimen_number",
@@ -27,6 +28,7 @@ load_value_list = [
     "mesh_points",
     "huber_loss_at_peak",
     "average_huber_loss",
+    "strike_center_indices"
 ]
 
 
@@ -174,8 +176,12 @@ class BulkAnalyzer:
             peak_flow_diff = result_manager.peak_flow_differences()
             range_flow_diff = result_manager.flow_diff_around_strike(half_length=12)
 
-            peak_flow_sq = result_manager.peak_flow_differences()**2
-            average_flow_sq = result_manager.flow_diff_around_strike(half_length=12, square=True)
+            peak_flow_sq = result_manager.peak_flow_differences() ** 2
+            average_flow_sq = result_manager.flow_diff_around_strike(
+                half_length=12, square=True
+            )
+
+            center_index = result_manager.strike_center_index()
 
             peak_huber_loss = result_manager.peak_huber_loss()
             range_huber_loss = result_manager.huber_loss_around_strike(half_length=12)
@@ -197,6 +203,7 @@ class BulkAnalyzer:
                 start_locations_mesh,
                 peak_huber_loss,
                 range_huber_loss,
+                torch.asarray([center_index] * num_points)
             ]
 
             if loaded_results is None:
@@ -241,3 +248,42 @@ class BulkAnalyzer:
 
         arr_percent = convert_to_percentile(arr.numpy())
         return torch.asarray(arr_percent)
+
+    # function that can take a location in the standardized ant coordinate system
+    # and return the indices of the k points closest to that location
+    # indices can be used to indicate that only some points should be used
+    def get_closest_point_indices(self, k=25, indices=None):
+        all_points = self.all_results["start_locations_std"]
+        if indices is not None:
+            points = all_points[indices]
+        else:
+            points = all_points
+        tree = cKDTree(points)
+
+        distances, indices = tree.query(all_points, k=k + 1)
+        neighbor_indices = indices[:, 1:]
+        neighbor_distances = distances[:, 1:]
+
+        return neighbor_distances, neighbor_indices
+
+    # points should be in the ant coordinate system
+    # in the standardized units
+    def get_points_within_radius(self, target_point, radius):
+        points = self.all_results["start_locations_std"]
+        tree = cKDTree(points)  # could also find all points within some radius
+        indices = tree.query_ball_point(target_point, radius)
+        return indices
+    
+    # return the indices corresponding to specific ants
+    def get_specimen_indices(self, specimen_name, strike_number=None):
+        spec_indices = np.where(self.all_results["specimen_number"] == specimen_name)[0]
+        if strike_number is None:
+            return spec_indices
+        
+        strike_indices = np.where(self.all_results["strike_number"] == strike_number)[0]
+        return np.intersect1d(spec_indices, strike_indices)
+    
+    # this is what we're currently using as the main error score 
+    @property 
+    def error_scores(self):
+        return torch.mean(self.get_top_values("average_flow_sq", num_cams=2), axis=1)

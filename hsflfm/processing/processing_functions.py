@@ -360,12 +360,22 @@ def get_point_locations(system, match_points, remove_imprecise_vals=True):
     return camera_points
 
 
+# default_flow_parameters = {
+#     "pyr_scale": 0.5,
+#     "levels": 3,
+#     "winsize": 11,
+#     "iterations": 5,
+#     "poly_n": 5,
+#     "poly_sigma": 0.8,
+#     "flags": 0,
+# }
+
 default_flow_parameters = {
-    "pyr_scale": 0.5,
-    "levels": 3,
-    "winsize": 11,
+    "pyr_scale": 0.9,
+    "levels": 5,
+    "winsize": 21,
     "iterations": 5,
-    "poly_n": 5,
+    "poly_n": 3,
     "poly_sigma": 0.8,
     "flags": 0,
 }

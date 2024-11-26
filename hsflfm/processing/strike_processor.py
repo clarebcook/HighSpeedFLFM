@@ -75,7 +75,8 @@ new_keys = [
     "unfiltered_flow_vectors",
     "flow_vectors",
     "iteration_losses",
-    "threshold_loss"
+    "threshold_loss",
+    "error_metric"
 ]
 
 
@@ -361,7 +362,15 @@ class StrikeProcessor:
         flow_diff_sq_top = flow_diff_sq_sorted[:, :2]
         flow_diff_sq_top = torch.mean(flow_diff_sq_top, axis=(1, 2))
         self.result_info["threshold_loss"] = flow_diff_sq_top
-        self.low_loss_points = flow_diff_sq_top < loss_threshold
+        self.low_loss_points = flow_diff_sq_top <= loss_threshold
+
+        # if less than half the points are good, we adjust the threshold 
+        # to use half the points
+        if np.count_nonzero(self.low_loss_points) < len(self.low_loss_points) / 2:
+            self.global_movement_settings["gm_loss_sq_threshold"] = float(torch.median(self.result_info["threshold_loss"]))
+            self.low_loss_points = flow_diff_sq_top <= loss_threshold
+
+        self.error_metric = flow_diff_sq_top
 
         # Step 3: use stable ratio to give weighting to points
         stable_ratio = self.global_movement_settings["stable_ratio"]
@@ -434,6 +443,7 @@ class StrikeProcessor:
         self.result_info["flow_settings"] = self.flow_settings
 
         self.result_info["time"] = get_timestamp()
+        self.result_info["error_metric"] = self.error_metric
 
         # all_keys = torch.cat((copy_keys, assert_keys, new_keys))
         for key in new_keys:

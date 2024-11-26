@@ -38,7 +38,7 @@ sample_vertices, _ = trimesh.sample.sample_surface(
 )
 tree = KDTree(sample_vertices)
 
-aligner = Aligner("20240507_OB_2")
+aligner = Aligner("20240503_OB_3")
 #A_base, s_base = aligner.run_strike1_alignment()  
 A_base, s_base = aligner.run_base_alignment()
 mp1 = aligner.move_points_to_mesh(A_base, s_base, aligner.point_camera_locations)

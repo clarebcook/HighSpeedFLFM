@@ -339,9 +339,7 @@ class ResultPlotter:
         white_buffer=5,
     ):
         if self.videos is None:
-            self.videos = load_split_video(
-                self.result_info["filename"], self.result_info["calibration_filename"]
-            )
+            self.load_video()
 
         # can specify to only make the video for certain frames
         if frames is None:
