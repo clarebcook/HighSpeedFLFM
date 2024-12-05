@@ -54,7 +54,7 @@ default_flow_settings = {
 }
 
 default_global_movement_settings = {
-    "stable_ratio": [7, 1],
+    "stable_ratio": [1, 1],
     "gm_loss_sq_threshold": 0.0015,
 }
 

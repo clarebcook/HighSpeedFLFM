@@ -1,13 +1,17 @@
-from hsflfm.ant_model import (mesh_filename, mesh_with_mandibles_filename,
-                              mesh_scale, display_mesh_scale)
-from hsflfm.config import home_directory 
+from hsflfm.ant_model import (
+    mesh_filename,
+    mesh_with_mandibles_filename,
+    mesh_scale,
+    display_mesh_scale,
+)
+from hsflfm.config import home_directory
 from .bulk_analyzer import ResultManager
 from hsflfm.processing import world_frame_to_pixel
 from hsflfm.util import load_split_video, MetadataManager
 from hsflfm.calibration import FLF_System
 
 import trimesh
-import torch 
+import torch
 from matplotlib import pyplot as plt
 import matplotlib
 import plotly.graph_objects as go
@@ -15,15 +19,16 @@ import numpy as np
 from scipy.spatial import KDTree
 from tqdm import tqdm
 
-mesh_filename = home_directory + '/' + mesh_filename
-display_mesh_filename = home_directory + '/' + mesh_with_mandibles_filename
+mesh_filename = home_directory + "/" + mesh_filename
+display_mesh_filename = home_directory + "/" + mesh_with_mandibles_filename
+
 
 class ResultPlotter:
-    def __init__(self, result_info):
-        self.result_info = result_info 
+    def __init__(self, result_info, good_indices=None):
+        self.result_info = result_info
         self.data_manager = MetadataManager(self.result_info["specimen_number"])
         self.result_manager = ResultManager(self.result_info)
-        self.videos = None 
+        self.videos = None
         self.strike_number = self.result_info["strike_number"]
 
         self.peak_indices = self.result_manager.peak_indices(dim=2)
@@ -31,21 +36,31 @@ class ResultPlotter:
 
         self.system = FLF_System(self.data_manager.calibration_filename)
 
+        # this can be set at any point to change
+        # which set of points get used in displays
+        self.good_indices = good_indices
+
     def load_video(self):
         self.videos = load_split_video(
             self.data_manager.video_filename(self.result_info["strike_number"]),
-            calibration_filename=self.data_manager.calibration_filename)
-        # ensure grayscale 
+            calibration_filename=self.data_manager.calibration_filename,
+        )
+        # ensure grayscale
         for key, item in self.videos.items():
             if len(item.shape) > 3:
                 item = np.mean(item, axis=-1)
             self.videos[key] = item
-        
-    def scatter_over_image(self, values, highlight_point=None, cam=2, *args, **kwargs):
+
+    def scatter_over_image(self, values, highlight_point=None, cam=2,
+                           good_only=True, *args, **kwargs):
         img = self.data_manager.get_start_images(strike_number=self.strike_number)[cam]
         mp = torch.asarray(self.result_info["match_points"][cam])
+
+        if self.good_indices is not None and good_only:
+            mp = mp[self.good_indices]
+
         fig = plt.figure()
-        plt.imshow(img, cmap='gray')
+        plt.imshow(img, cmap="gray")
         plt.scatter(mp[:, 1], mp[:, 0], c=values, *args, **kwargs)
 
         crop = True
@@ -68,8 +83,11 @@ class ResultPlotter:
             plt.gca().add_patch(circ)
         return fig
 
-    def scatter_values(self, values, highlight_point=None, *args, **kwargs):
+    def scatter_values(self, values, highlight_point=None, good_only=True, *args, **kwargs):
         ant_start_locs = self.result_manager.point_start_locs_ant_mm
+
+        if self.good_indices is not None and good_only:
+            ant_start_locs = ant_start_locs[self.good_indices]
 
         fig = plt.figure()
         plt.scatter(
@@ -91,25 +109,35 @@ class ResultPlotter:
         plt.gca().set_aspect("equal")
         plt.colorbar()
         return fig
-    
-    def show_image_numbers(self, cam=2):
+
+    def show_image_numbers(self, cam=2, good_only=True):
         point_numbers = torch.asarray(self.result_info["point_numbers"])
-        fig = self.scatter_over_image(values='black', cam=cam)
+        fig = self.scatter_over_image(values="black", cam=cam)
 
         ax = fig.axes[0]
         mp = np.asarray(self.result_info["match_points"][cam])
+
+        if good_only and self.good_indices is not None:
+            point_numbers = point_numbers[self.good_indices]
+            mp = mp[self.good_indices]
+
         for number, point in zip(point_numbers, mp):
-            ax.text(point[1], point[0], str(int(number)), color='white')
+            ax.text(point[1], point[0], str(int(number)), color="white")
 
         return fig
-    
-    def scatter_peak_disp(self, dim=2, with_image=False, *args, **kwargs):
+
+    def scatter_peak_disp(self, dim=2, with_image=False, good_only=True, *args, **kwargs):
         peak_displacement = self.result_manager.peak_displacements(dim=dim)
 
+        if good_only and self.good_indices is not None:
+            peak_displacement = peak_displacement[self.good_indices]
+
         if with_image:
-            self.scatter_over_image(peak_displacement, *args, **kwargs)
+            self.scatter_over_image(peak_displacement, good_only=good_only,
+                                    *args, **kwargs)
         else:
-            self.scatter_values(peak_displacement, *args, **kwargs)
+            self.scatter_values(peak_displacement, good_only=good_only,
+                                *args, **kwargs)
 
     def plot_camera_weight(self, point_number):
         point_index = torch.where(
@@ -204,15 +232,22 @@ class ResultPlotter:
 
         return fig0, fig1
 
-    def plot_all_displacement(self, dim=2, relative=True, highlight_point=None):
+    def plot_all_displacement(
+        self, dim=2, relative=True, highlight_point=None, good_only=True
+    ):
         if relative:
             disp = torch.asarray(self.result_info["rel_displacements"])
         else:
             disp = torch.asarray(self.result_info["camera_point_displacements"])
         disp = disp[:, :, dim] * 1e3
 
+        if good_only and self.good_indices is not None:
+            disp_ = disp[self.good_indices]
+        else:
+            disp_ = disp
+
         fig = plt.figure()
-        for p in disp:
+        for p in disp_:
             plt.plot(p, color="black")
         if highlight_point is not None:
             point_index = torch.where(
@@ -223,23 +258,22 @@ class ResultPlotter:
         plt.xlabel("Frame #")
         plt.ylabel("Displacement (um)")
         return fig
-    
+
     def make_point_track_video(
-            self, 
-            cam_num=2,
-            crop_buffer=[75, 10, 25, 25],
-            highlight_point=None,
-            frames=None,
-            scale_gray_vid=True,
-            video_brightness=1,
-            return_crops=False,
-            white_buffer=5
+        self,
+        cam_num=2,
+        crop_buffer=[75, 10, 25, 25],
+        highlight_point=None,
+        frames=None,
+        return_crops=False,
+        white_buffer=5,
     ):
         if highlight_point is not None:
             point_index = torch.where(
-                torch.asarray(self.result_info["point_numbers"]) == highlight_point)[0][0]
+                torch.asarray(self.result_info["point_numbers"]) == highlight_point
+            )[0][0]
         if self.videos is None:
-            self.load_video() 
+            self.load_video()
 
         # can specify to only make the video for certain frames
         if frames is None:
@@ -274,21 +308,23 @@ class ResultPlotter:
             # hack hack hack
             # showing fake image to get the colorbar ?
             frame = torch.asarray(gray_video[frame_num]).to(torch.uint8)
-            plt.imshow(frame, cmap='gray')
+            plt.imshow(frame, cmap="gray")
             plt.xticks([])
             plt.yticks([])
 
             if crop_buffer is not None:
                 plt.gca().set_xlim(ystart, yend)
                 plt.gca().set_ylim(xend, xstart)
-            
+
             points = np.asarray(match_points).copy()
-            points[:, 0] = points[:,0] + flowx[:, frame_num].numpy()
+            points[:, 0] = points[:, 0] + flowx[:, frame_num].numpy()
             points[:, 1] = points[:, 1] + flowy[:, frame_num].numpy()
-            plt.scatter(points[:, 1], points[:, 0], color='blue')
+            plt.scatter(points[:, 1], points[:, 0], color="blue")
 
             if highlight_point is not None:
-                plt.scatter([points[point_index, 1]], [points[point_index, 0]], color='red')
+                plt.scatter(
+                    [points[point_index, 1]], [points[point_index, 0]], color="red"
+                )
 
             plt.tight_layout()
             fig.canvas.draw()
@@ -320,7 +356,7 @@ class ResultPlotter:
             crops = [int(i) for i in [xstart, xend, ystart, yend]]
             return video, crops
         return video
-        
+
     # make video with arrows annotating point movement
     # this can likely be simplified using newer functions for getting point locations
     def get_arrow_video(
@@ -333,10 +369,9 @@ class ResultPlotter:
         cmap=matplotlib.cm.turbo,
         frames=None,
         force_arrow_after_strike=True,
-        scale_gray_vid=True,
-        video_brightness=1,
         return_crops=False,
         white_buffer=5,
+        good_only=True
     ):
         if self.videos is None:
             self.load_video()
@@ -349,8 +384,14 @@ class ResultPlotter:
         affine_matrices = torch.asarray(self.result_info["affine_matrices"])
         A_cam_to_ant_start = torch.asarray(self.result_info["A_cam_to_ant_start"])
         match_points = torch.asarray(self.result_info["match_points"][cam_num])
-        max_z_disp = torch.max(rel_displacements[:, :, 2])
-        min_z_disp = torch.min(rel_displacements[:, :, 2])
+
+        if good_only and self.good_indices is not None:
+            idx = self.good_indices
+        else:
+            idx = torch.arange(rel_displacements.shape[0])
+
+        max_z_disp = torch.max(rel_displacements[idx, :, 2])
+        min_z_disp = torch.min(rel_displacements[idx, :, 2])
 
         flow = torch.asarray(self.result_info["flow_vectors"])
         flowx = flow[:, 2 * cam_num]
@@ -390,7 +431,7 @@ class ResultPlotter:
                 cmap=cmap,
             )
             plt.colorbar()
-            plt.imshow(frame, cmap='gray')
+            plt.imshow(frame, cmap="gray")
             plt.xticks([])
             plt.yticks([])
 
@@ -447,6 +488,9 @@ class ResultPlotter:
             y_vect = (v1[0][0] - start[0][0], v1[1][0] - start[1][0])
 
             for point_index in range(match_points.shape[0]):
+                if good_only and self.good_indices is not None:
+                    if point_index not in self.good_indices:
+                        continue
                 disp = rel_displacements[point_index, frame_num]
                 z_disp = disp[2]
 
@@ -521,17 +565,24 @@ class ResultPlotter:
     def move_points_to_surface(mesh_points, mesh=None, mesh_sample=100):
         if mesh is None:
             mesh = trimesh.load(mesh_filename)
-        vertices, _ = trimesh.sample.sample_surface(mesh, len(mesh.vertices) * mesh_sample)
+        vertices, _ = trimesh.sample.sample_surface(
+            mesh, len(mesh.vertices) * mesh_sample
+        )
         tree = KDTree(vertices)
         _, indices = tree.query(mesh_points)
         return vertices[indices]
 
-    @staticmethod 
-    def plot_mesh_with_points(mesh=None, opacity=0.5, color="lightgray",
-                              points=None, point_values=None,
-                              points_on_surface=False, use_display_mesh=True,
-                              marker_dict={"size": 5, "opacity": 1, 
-                                           "colorscale": "Turbo"}):
+    @staticmethod
+    def plot_mesh_with_points(
+        mesh=None,
+        opacity=0.5,
+        color="lightgray",
+        points=None,
+        point_values=None,
+        points_on_surface=False,
+        use_display_mesh=True,
+        marker_dict={"size": 5, "opacity": 1, "colorscale": "Turbo"},
+    ):
         if points_on_surface:
             points = ResultPlotter.move_points_to_surface(points)
 
@@ -539,7 +590,7 @@ class ResultPlotter:
             if use_display_mesh:
                 mesh = trimesh.load(display_mesh_filename)
                 scale_ratio = display_mesh_scale / mesh_scale
-            else: 
+            else:
                 mesh = trimesh.load(mesh_filename)
                 scale_ratio = 1
             # we're using the display mesh, so the point values need to change
@@ -568,7 +619,7 @@ class ResultPlotter:
         if points is not None:
             if point_values is None:
                 point_values = "red"
-            marker_dict["color"] = point_values 
+            marker_dict["color"] = point_values
             fig.add_trace(
                 go.Scatter3d(
                     x=points[:, 0],

@@ -54,16 +54,16 @@ class MetadataManager:
         strike_data = self.get_strike_data(strike_number)
         video_filename = strike_data["VideoFileName"].values[0]
         return video_folder + "/" + video_filename
-    
+
     @property
     def match_points_filename(self):
-        folder = self.alignment_folder 
-        return folder + '/match_points'
-    
-    @property 
+        folder = self.alignment_folder
+        return folder + "/match_points"
+
+    @property
     def alignment_points_filename(self):
-        folder = self.alignment_folder 
-        return folder + '/alignment_points'
+        folder = self.alignment_folder
+        return folder + "/alignment_points"
 
     @property
     def light_calibration_filename(self):
@@ -104,3 +104,28 @@ class MetadataManager:
             frame = np.mean(video[1:], axis=0)
             images[key] = frame
         return images
+
+    # these could likely be handled in a better way
+    # but this is okay for now
+    def mandible_order(self, strike_number):
+        strike_data = self.get_strike_data(strike_number)
+        key = "Mandible Order \n(Left, Right, Simultaneous)"
+        return strike_data[key].values[0]
+    
+    # these will always be returned as L, R
+    def mandible_start_frames(self, strike_number):
+        strike_data = self.get_strike_data(strike_number)
+        key0 = 'Mandible 1 \nframe start / Strike Start'
+        key1 = 'Mandible 2 frame start'
+
+        f0 = strike_data[key0].values[0] 
+        f1 = strike_data[key1].values[0]
+
+        # TODO: edit this once we know how to handle "S"
+        if self.mandible_order in ["L", "L only", "S"]:
+            frames = (f0, f1)
+        else:
+            frames = (f1, f0)
+
+        return frames
+

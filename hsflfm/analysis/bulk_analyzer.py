@@ -1,4 +1,4 @@
-from hsflfm.util import load_dictionary, matmul
+from hsflfm.util import load_dictionary, matmul, MetadataManager
 from hsflfm.ant_model import M_mesh_ant, mesh_scale
 from .basic_functions import (
     get_peak_indices,
@@ -28,7 +28,9 @@ load_value_list = [
     "mesh_points",
     "huber_loss_at_peak",
     "average_huber_loss",
-    "strike_center_indices"
+    "strike_center_indices",
+    "mandible_start_frames", 
+    "mandible_order"
 ]
 
 
@@ -187,6 +189,14 @@ class BulkAnalyzer:
             range_huber_loss = result_manager.huber_loss_around_strike(half_length=12)
 
             num_points = len(result_dict["point_numbers"])
+
+            # get mandible information
+            metadata_manager = MetadataManager(result_dict["specimen_number"])
+            start_frames = metadata_manager.mandible_start_frames(result_dict["strike_number"])
+            start_frames = torch.asarray([start_frames] * num_points)
+            mandible_order = metadata_manager.mandible_order(result_dict["strike_number"])
+            mandible_order = np.asarray([mandible_order] * num_points)
+
             array_list = [
                 np.asarray([result_dict["specimen_number"]] * num_points),
                 torch.asarray([result_dict["strike_number"]] * num_points),
@@ -203,7 +213,9 @@ class BulkAnalyzer:
                 start_locations_mesh,
                 peak_huber_loss,
                 range_huber_loss,
-                torch.asarray([center_index] * num_points)
+                torch.asarray([center_index] * num_points),
+                start_frames,
+                mandible_order
             ]
 
             if loaded_results is None:
@@ -212,7 +224,7 @@ class BulkAnalyzer:
                     loaded_results[key] = value
             else:
                 for key, value in zip(load_value_list, array_list):
-                    if key == "specimen_number":
+                    if key in ["specimen_number", "mandible_order"]:
                         loaded_results[key] = np.concatenate(
                             (loaded_results[key], value), axis=0
                         )
