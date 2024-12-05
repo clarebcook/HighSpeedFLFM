@@ -224,15 +224,16 @@ camera_combos = {"0, 1": [0, 1], "0, 2": [0, 2], "1, 2": [1, 2]}
 
 # this function will likely be re-done, and is currently hard-coded for a three-camera system
 # just using pairs of cameras to get the locations
-def get_point_locations(system, match_points, remove_imprecise_vals=True):
+def get_point_locations(
+    system, match_points, remove_imprecise_vals=True, return_average=True
+):
     first_key = [i for i in match_points.keys()][0]
     num_points = len(match_points[first_key])
     location_estimates_mm = xr.DataArray(
-        np.ones((num_points, 3, 4, 3), dtype=np.float64) * np.nan,
-        dims=("point_number", "camera_combo", "spatial_dim", "camera"),
+        np.ones((num_points, 3, 4), dtype=np.float64) * np.nan,
+        dims=("point_number", "camera_combo", "spatial_dim"),
         coords={
             "point_number": np.arange(len(match_points[0])),
-            "camera": [0, 1, 2],
             "camera_combo": ["0, 1", "0, 2", "1, 2"],
             "spatial_dim": ["x", "y", "z_x", "z_y"],
         },
@@ -260,18 +261,13 @@ def get_point_locations(system, match_points, remove_imprecise_vals=True):
             # then we need to find x and y from that.
             # for now, we're finding the true x and y locations in "pixels"
             # so where that point would appear in the image if it was translated to the reference plane, plane=0
+            # we can use either camera for this
             slope0_cam0, slope1_cam0 = system.get_shift_slopes(
                 cam_num0, [point_cam0[0]], [point_cam0[1]]
             )
             # the 0 indexing on slope0_cam0 and others is because get_shift_slopes returns a list
-            x0 = point_cam0[0] - slope0_cam0[0] * plane_from_dx
-            y0 = point_cam0[1] - slope1_cam0[0] * plane_from_dy
-
-            slope0_cam1, slope1_cam1 = system.get_shift_slopes(
-                cam_num1, [point_cam1[0]], [point_cam1[1]]
-            )
-            x1 = point_cam1[0] - slope0_cam1[0] * plane_from_dx
-            y1 = point_cam1[1] - slope1_cam1[0] * plane_from_dy
+            x = point_cam0[0] - slope0_cam0[0] * plane_from_dx
+            y = point_cam0[1] - slope1_cam0[0] * plane_from_dy
 
             # Then shift the pixel values to their location in the reference camera
             # ideally we would use x0, x1, y0, y1 instead of point_cam0 and point_cam1
@@ -281,14 +277,8 @@ def get_point_locations(system, match_points, remove_imprecise_vals=True):
             shiftx_cam0, shifty_cam0 = system.get_pixel_shifts(
                 cam_num0, [point_cam0[0]], [point_cam0[1]]
             )
-            x0 = x0 + shiftx_cam0[0]
-            y0 = y0 + shifty_cam0[0]
-
-            shiftx_cam1, shifty_cam1 = system.get_pixel_shifts(
-                cam_num1, [point_cam1[0]], [point_cam1[1]]
-            )
-            x1 = x1 + shiftx_cam1[0]
-            y1 = y1 + shifty_cam1[0]
+            x = x + shiftx_cam0[0]
+            y = y + shifty_cam0[0]
 
             # to switch to mm, use the magnificaiton at the reference camera
             # since we would've already taken into account differences in magnificaiton
@@ -300,40 +290,21 @@ def get_point_locations(system, match_points, remove_imprecise_vals=True):
             magnification_dim1 = system.get_magnification_at_plane(
                 camera_number=system.reference_camera, plane_mm=0, dim=1
             )
-            x0_mm = x0 / magnification_dim0 * pixel_size_m * 1e3
-            y0_mm = y0 / magnification_dim1 * pixel_size_m * 1e3
-            x1_mm = x1 / magnification_dim0 * pixel_size_m * 1e3
-            y1_mm = y1 / magnification_dim1 * pixel_size_m * 1e3
+            x_mm = x / magnification_dim0 * pixel_size_m * 1e3
+            y_mm = y / magnification_dim1 * pixel_size_m * 1e3
 
-            entry_dict_cam0 = {
-                "x": x0_mm,
-                "y": y0_mm,
+            entry_dict = {
+                "x": x_mm,
+                "y": y_mm,
                 "z_x": plane_from_dx,
                 "z_y": plane_from_dy,
             }
-            for dim, entry in entry_dict_cam0.items():
+            for dim, entry in entry_dict.items():
                 location_estimates_mm.loc[
                     {
                         "point_number": point_number,
                         "camera_combo": key,
                         "spatial_dim": dim,
-                        "camera": cam_num0,
-                    }
-                ] = entry
-
-            entry_dict_cam1 = {
-                "x": x1_mm,
-                "y": y1_mm,
-                "z_x": plane_from_dx,
-                "z_y": plane_from_dy,
-            }
-            for dim, entry in entry_dict_cam1.items():
-                location_estimates_mm.loc[
-                    {
-                        "point_number": point_number,
-                        "camera_combo": key,
-                        "spatial_dim": dim,
-                        "camera": cam_num1,
                     }
                 ] = entry
 
@@ -342,8 +313,11 @@ def get_point_locations(system, match_points, remove_imprecise_vals=True):
             {"spatial_dim": ["z_x", "x"], "camera_combo": "0, 1"}
         ] = np.nan
 
+    if not return_average:
+        return location_estimates_mm
+
     # then average to get the final values
-    locations_mm = location_estimates_mm.mean(dim=["camera_combo", "camera"])
+    locations_mm = location_estimates_mm.mean(dim=["camera_combo"])
     # z has to be averaged further
     # but this could all be much cleaner
     z_locations_mm = (
