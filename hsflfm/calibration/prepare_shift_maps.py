@@ -336,3 +336,81 @@ def generate_normalized_shift_maps(
     transform = Resize(image_shape)
     maps_t = transform(maps.permute(0, 3, 1, 2))
     return maps_t.permute(0, 2, 3, 1)
+
+
+# prepare the shift and sum volume
+def generate_warp_volume(
+    image, heights, warped_shift_slopes, inv_inter_camera_map, image_shape
+):
+    y, x = torch.meshgrid(
+        torch.arange(0, image_shape[0], dtype=torch.float32) / image_shape[0],
+        torch.arange(0, image_shape[1], dtype=torch.float32) / image_shape[1],
+    )
+    base_grid = torch.stack([x, y], dim=-1)
+    base_grid = base_grid * 2 - 1
+
+    # make the grid stack with inter camera shifts
+    base_grid = base_grid + inv_inter_camera_map
+    base_grid = torch.stack([base_grid.squeeze(0)] * len(heights), dim=0)
+    # make the slope shifts for each height
+    heights = heights.view(-1, 1, 1, 1)
+    slope_shifts = (
+        torch.stack([warped_shift_slopes.squeeze(0)] * len(heights), dim=0) * heights
+    )
+
+    # add them
+    # recall that the shift slopes were warped, but never multiplied by -1 at this stage
+    # so we're doing that here
+    grid = base_grid + slope_shifts * -1
+
+    # then prepare the image
+    image_stack = torch.stack([image.squeeze(0)] * len(heights), dim=0)
+
+    warped_stack = F.grid_sample(
+        image_stack, grid, mode="bilinear", padding_mode="zeros", align_corners=False
+    )
+
+    return warped_stack, grid
+
+# this is somewhat preliminary and not well tested outside of its current use
+# but this should provide a shift and sum volume for the set of provided images
+# "images" is a dictionary with camera numbers as keys, and 2D images as values
+# system is the FLF_System 
+# and heights is a 1D torch tensor for the heights of the planes in the returned volume
+def generate_ss_volume(calibration_filename, images, heights):
+    key0 = [i for i in images.keys()][0]
+    image_shape = images[key0].shape
+    warped_ss_maps = generate_normalized_shift_maps(
+            calibration_filename=calibration_filename,
+            image_shape=image_shape,
+            gen_downsample=1,
+            type="warped_shift_slope",
+        )
+    inv_inter_camera_maps = generate_normalized_shift_maps(
+            calibration_filename=calibration_filename,
+            image_shape=image_shape,
+            gen_downsample=1,
+            type="inv_inter_camera",
+        )
+
+    volume = torch.zeros(
+        (len(heights), images[0].shape[0], images[0].shape[1], 3)
+    )
+    grid_volume = torch.zeros(
+        (3, len(heights), images[0].shape[0], images[0].shape[1], 2)
+    )
+    for cam_num, image in images.items():
+        image = torch.from_numpy(image[None, None]).to(torch.float32)
+
+        ss_map = warped_ss_maps[[cam_num]].to(torch.float32)
+        ii_map = inv_inter_camera_maps[[cam_num]].to(torch.float32)
+        warp_volume, grid = generate_warp_volume(
+            image, heights, ss_map, ii_map, image_shape
+        )
+        warp_volume = warp_volume.squeeze()
+        grid = grid.squeeze()
+
+        volume[:, :, :, cam_num] = warp_volume
+        grid_volume[cam_num] = grid
+
+    return volume, grid_volume

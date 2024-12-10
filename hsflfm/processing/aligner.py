@@ -64,6 +64,7 @@ default_alignment_settings = {
     "base_loss_weight": 1e-6,
     "point_match_sequentially": True, 
     "reshift_during_inter_strike_point_matching": True,
+    "enforce_stiff_transform": True,
 }
 
 # individual start points
@@ -366,6 +367,7 @@ class Aligner:
         A = np.linalg.inv(A)
         return A, scale2
     
+    
     def align_strike(
         self,
         strike_number,
@@ -471,16 +473,36 @@ class Aligner:
             else:
                 run = False
 
-        for key, item in strike_match_points.items():
-            strike_match_points[key] = np.asarray(item)[strike_point_indices]
+        # use the recently found locations of each points
+        # and drop those with large errors
+        if not self.alignment_settings["enforce_stiff_transform"]:
+            for key, item in strike_match_points.items():
+                strike_match_points[key] = np.asarray(item)[strike_point_indices]
 
-        self.stored_match_points[strike_number] = strike_match_points
-        prev_point_numbers = self.stored_point_numbers[start_strike]
+            point_numbers = self.stored_point_numbers[start_strike][strike_point_indices]
+        else:
+            # compute new match points based on transform from old ones
+            prev_camera_locations = get_point_locations(self.system, prev_match_points)
+            new_camera_locations = matmul(np.linalg.inv(A_cam2_to_cam1), prev_camera_locations)
 
-        point_numbers = prev_point_numbers[strike_point_indices]
+            # TODO: update world_frame_to_pixel so we don't have to loop so much
+            strike_match_points = {}
+            for camera in prev_match_points.keys():
+                points = np.zeros((len(prev_match_points[camera]), 2))
+                for i, p in enumerate(new_camera_locations):
+                    pixels = np.asarray(world_frame_to_pixel(self.system, p, camera)).squeeze()
+                    points[i] = pixels
+                strike_match_points[camera] = points
+
+            point_numbers = self.stored_point_numbers[start_strike]
+
         self.stored_point_numbers[strike_number] = point_numbers
+        self.stored_match_points[strike_number] = strike_match_points
+        return A_cam2_to_cam1, strike_match_points, point_numbers, bad_numbers, start_strike 
 
-        return A_cam2_to_cam1, strike_match_points, point_numbers, bad_numbers, start_strike
+
+            
+
     
     # def align_strike(
     #     self,
@@ -735,4 +757,4 @@ class Aligner:
 
 if __name__ == "__main__":
     a = Aligner("20240502_OB_3")
-    example_results = a.prepare_strike_results(strike_number=3)
+    example_results = a.prepare_strike_results(strike_number=2)

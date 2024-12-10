@@ -25,12 +25,18 @@ def world_frame_to_pixel(system, point, camera=2):
         point[1] * mag1 / (pixel_size_m * 1e3),
     )
 
+
+    # TODO: this is not quite correct
+    # we need to do this similar to how we produce the
+    # inv inter camera maps
+    # so take a look at that and then fix this 
+
+
     # then shift to the other camera if it's not the reference camera
     s0, s1 = system.get_pixel_shifts(camera, [pixels[0]], [pixels[1]])
     pixels = (pixels[0] - s0, pixels[1] - s1)
 
     # then use height and calibration model to find the pixel
-    # just using the reference camera to make things easier
     v0, v1 = system.get_shift_slopes(camera, [pixels[0]], [pixels[1]])
     pixels = (pixels[0] - point[2] * v0, pixels[1] - point[2] * v1)
 
