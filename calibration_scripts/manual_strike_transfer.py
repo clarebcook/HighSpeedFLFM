@@ -134,7 +134,7 @@ class FrameViewer(QtWidgets.QWidget):
 
     def get_filename(self):
         # very hard-coded, we'll adjust this
-        folder = "../temporary_alignment_data_storage"
+        folder = "../temporary_result_storage_7"
         if not os.path.exists(folder):
             os.mkdir(folder)
         spec_folder = folder + f"/{self.cur_specimen_number}"
@@ -295,7 +295,8 @@ class FrameViewer(QtWidgets.QWidget):
 
         self.aligner = Aligner(
             self.cur_specimen_number,
-            # alignment_settings={"enforce_stiff_transform": False},
+            alignment_settings={"enforce_stiff_transform": False,
+                                "enforce_self_consistency": False},
         )
         self.data_manager = MetadataManager(self.cur_specimen_number)
         self.strike_numbers = np.sort(self.data_manager.strike_numbers)
@@ -566,7 +567,7 @@ if __name__ == "__main__":
         #    "../temporary_result_storage_5/20240503_OB_3/strike_13_results.json",
         #    "../temporary_result_storage_5/20240503_OB_3/strike_14_results.json",
         # ],
-        specimen_numbers=["20240503_OB_3"],
+        specimen_numbers=["20220422_OB_1"],#, "20240503_OB_3"],
         heights=heights,
     )
     viewer.show()

@@ -65,6 +65,8 @@ default_alignment_settings = {
     "point_match_sequentially": True, 
     "reshift_during_inter_strike_point_matching": True,
     "enforce_stiff_transform": True,
+    # this will naturally be true if "enforce_stiff_transform" is True 
+    "enforce_self_consistency": True, 
 }
 
 # individual start points
@@ -475,13 +477,7 @@ class Aligner:
 
         # use the recently found locations of each points
         # and drop those with large errors
-        if not self.alignment_settings["enforce_stiff_transform"]:
-            for key, item in strike_match_points.items():
-                strike_match_points[key] = np.asarray(item)[strike_point_indices]
-
-            point_numbers = self.stored_point_numbers[start_strike][strike_point_indices]
-        else:
-            # compute new match points based on transform from old ones
+        if self.alignment_settings["enforce_stiff_transform"]:
             prev_camera_locations = get_point_locations(self.system, prev_match_points)
             new_camera_locations = matmul(np.linalg.inv(A_cam2_to_cam1), prev_camera_locations)
 
@@ -495,9 +491,45 @@ class Aligner:
                 strike_match_points[camera] = points
 
             point_numbers = self.stored_point_numbers[start_strike]
+        elif self.alignment_settings["enforce_self_consistency"]: 
+            # good_match_points = strike_match_points[strike_point_indices]
+            new_camera_locations = get_point_locations(self.system, strike_match_points)[strike_point_indices]
+            for camera in strike_match_points.keys():
+                points = np.zeros((len(strike_point_indices), 2))
+                for i, p in enumerate(new_camera_locations):
+                    pixels = np.asarray(world_frame_to_pixel(self.system, p, camera)).squeeze() 
+                    points[i] = pixels 
+                strike_match_points[camera] = points
+            point_numbers = self.stored_point_numbers[start_strike][strike_point_indices]
+
+        else:
+            for key, item in strike_match_points.items():
+                strike_match_points[key] = np.asarray(item)[strike_point_indices]
+
+            point_numbers = self.stored_point_numbers[start_strike][strike_point_indices]
 
         self.stored_point_numbers[strike_number] = point_numbers
         self.stored_match_points[strike_number] = strike_match_points
+
+        # TODO: update rough alignment here! 
+        # I guess for now... we're just ignoring that shifts could be due to z movement
+        # and just saving 1 rough alignment for everyone 
+        all_avg_diff = None
+        for key in strike_match_points.keys():
+            mp1 = self.stored_match_points[1][key][point_numbers]
+            mp2 = strike_match_points[key] 
+            diff = mp2 - mp1
+            avg_diff = np.mean(diff, axis=0)
+            if all_avg_diff is None:
+                all_avg_diff = avg_diff 
+            else:
+                all_avg_diff += avg_diff 
+        all_avg_diff /= len(strike_match_points)
+
+
+
+        self.rough_interstrike_alignment[int(strike_number)] = all_avg_diff
+
         return A_cam2_to_cam1, strike_match_points, point_numbers, bad_numbers, start_strike 
 
 

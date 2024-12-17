@@ -29,8 +29,9 @@ load_value_list = [
     "huber_loss_at_peak",
     "average_huber_loss",
     "strike_center_indices",
-    "mandible_start_frames", 
-    "mandible_order"
+    "mandible_start_frames",
+    "mandible_order",
+    "max_z_velocity",
 ]
 
 
@@ -41,6 +42,28 @@ class ResultManager:
     @property
     def rel_displacements(self):
         return torch.asarray(self.result_info["rel_displacements"])
+
+    def max_abs_velocity(self, dim=2, frame_restriction=5, return_indices=False):
+        displacements = self.rel_displacements[:, :, dim]
+        derivs = torch.diff(displacements, axis=1)
+
+        if frame_restriction is not None:
+            center_index = self.strike_center_index(dim=dim)
+            si = max(0, center_index - frame_restriction)
+            ei = min(center_index + frame_restriction, derivs.shape[1])
+            derivs = derivs[:, si:ei]
+
+        abs_derivs = torch.abs(derivs)
+        _, indices = torch.max(abs_derivs, axis=1)
+        max_vals = derivs[torch.arange(derivs.shape[0]), indices]
+
+        if return_indices:
+            # there's definitely a cleaner way to do this
+            if frame_restriction is not None:
+                indices = indices + si
+            return max_vals, indices
+
+        return max_vals
 
     def peak_indices(self, dim=2):
         arr = self.rel_displacements
@@ -164,12 +187,14 @@ class BulkAnalyzer:
             )
             peak_norm_displacements = torch.zeros_like(peak_displacements)
             peak_indices = torch.zeros(peak_displacements.shape, dtype=torch.int)
+            max_velocities = torch.zeros_like(peak_displacements)
             for dim in range(3):
                 peak_indices[:, dim] = result_manager.peak_indices(dim=dim)
                 peak_displacements[:, dim] = result_manager.peak_displacements(dim=dim)
                 peak_norm_displacements[:, dim] = (
                     result_manager.peak_norm_displacements(dim=dim)
                 )
+                max_velocities[:, dim] = result_manager.max_abs_velocity(dim=dim)
 
             start_locations_ant_mm = result_manager.point_start_locs_ant_mm
             start_locations_ant_std = result_manager.point_start_locs_ant_std
@@ -192,9 +217,13 @@ class BulkAnalyzer:
 
             # get mandible information
             metadata_manager = MetadataManager(result_dict["specimen_number"])
-            start_frames = metadata_manager.mandible_start_frames(result_dict["strike_number"])
+            start_frames = metadata_manager.mandible_start_frames(
+                result_dict["strike_number"]
+            )
             start_frames = torch.asarray([start_frames] * num_points)
-            mandible_order = metadata_manager.mandible_order(result_dict["strike_number"])
+            mandible_order = metadata_manager.mandible_order(
+                result_dict["strike_number"]
+            )
             mandible_order = np.asarray([mandible_order] * num_points)
 
             array_list = [
@@ -215,7 +244,8 @@ class BulkAnalyzer:
                 range_huber_loss,
                 torch.asarray([center_index] * num_points),
                 start_frames,
-                mandible_order
+                mandible_order,
+                max_velocities,
             ]
 
             if loaded_results is None:
@@ -285,17 +315,17 @@ class BulkAnalyzer:
         tree = cKDTree(points)  # could also find all points within some radius
         indices = tree.query_ball_point(target_point, radius)
         return indices
-    
+
     # return the indices corresponding to specific ants
     def get_specimen_indices(self, specimen_name, strike_number=None):
         spec_indices = np.where(self.all_results["specimen_number"] == specimen_name)[0]
         if strike_number is None:
             return spec_indices
-        
+
         strike_indices = np.where(self.all_results["strike_number"] == strike_number)[0]
         return np.intersect1d(spec_indices, strike_indices)
-    
-    # this is what we're currently using as the main error score 
-    @property 
+
+    # this is what we're currently using as the main error score
+    @property
     def error_scores(self):
         return torch.mean(self.get_top_values("average_flow_sq", num_cams=2), axis=1)
