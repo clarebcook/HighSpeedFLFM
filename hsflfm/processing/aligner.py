@@ -22,6 +22,7 @@ from .processing_functions import (
     get_point_locations,
     match_points_between_images,
     world_frame_to_pixel,
+    enforce_self_consistency
 )
 
 import trimesh
@@ -197,7 +198,7 @@ class Aligner:
 
         self.system = FLF_System(self.data_manager.calibration_filename)
 
-        self.alignment_settings = default_alignment_settings
+        self.alignment_settings = default_alignment_settings.copy()
         for key, value in alignment_settings.items():
             self.alignment_settings[key] = value
 
@@ -253,7 +254,7 @@ class Aligner:
             for strike_num in self.data_manager.strike_numbers:
                 self.rough_interstrike_alignment[strike_num] = (0, 0)
 
-        self.flow_settings = default_flow_settings 
+        self.flow_settings = default_flow_settings.copy() 
         if specimen_name in individual_flow_settings:
             ifs = individual_flow_settings[specimen_name]
             for key, item in ifs.items():
@@ -493,13 +494,16 @@ class Aligner:
             point_numbers = self.stored_point_numbers[start_strike]
         elif self.alignment_settings["enforce_self_consistency"]: 
             # good_match_points = strike_match_points[strike_point_indices]
-            new_camera_locations = get_point_locations(self.system, strike_match_points)[strike_point_indices]
-            for camera in strike_match_points.keys():
-                points = np.zeros((len(strike_point_indices), 2))
-                for i, p in enumerate(new_camera_locations):
-                    pixels = np.asarray(world_frame_to_pixel(self.system, p, camera)).squeeze() 
-                    points[i] = pixels 
-                strike_match_points[camera] = points
+            # new_camera_locations = get_point_locations(self.system, strike_match_points)[strike_point_indices]
+            # for camera in strike_match_points.keys():
+            #     points = np.zeros((len(strike_point_indices), 2))
+            #     for i, p in enumerate(new_camera_locations):
+            #         pixels = np.asarray(world_frame_to_pixel(self.system, p, camera)).squeeze() 
+            #         points[i] = pixels 
+            #     strike_match_points[camera] = points
+            for key, item in strike_match_points.items():
+                strike_match_points[key] = np.asarray(item)[strike_point_indices]
+            strike_match_points = enforce_self_consistency(strike_match_points, self.system)
             point_numbers = self.stored_point_numbers[start_strike][strike_point_indices]
 
         else:
@@ -516,8 +520,11 @@ class Aligner:
         # and just saving 1 rough alignment for everyone 
         all_avg_diff = None
         for key in strike_match_points.keys():
-            mp1 = self.stored_match_points[1][key][point_numbers]
-            mp2 = strike_match_points[key] 
+            strike1_point_numbers = self.stored_point_numbers[1]
+            indices1 = np.where(np.isin(strike1_point_numbers, point_numbers))[0] 
+            indices2 = np.where(np.isin(point_numbers, strike1_point_numbers))[0]
+            mp1 = self.stored_match_points[1][key][indices1]
+            mp2 = strike_match_points[key][indices2]
             diff = mp2 - mp1
             avg_diff = np.mean(diff, axis=0)
             if all_avg_diff is None:
@@ -529,6 +536,10 @@ class Aligner:
 
 
         self.rough_interstrike_alignment[int(strike_number)] = all_avg_diff
+
+        A_cam_ant = self.stored_alignment_matrices[start_strike]
+        strike_A_cam_ant = np.linalg.matmul(A_cam_ant, A_cam2_to_cam1)
+        self.stored_alignment_matrices[strike_number] = strike_A_cam_ant
 
         return A_cam2_to_cam1, strike_match_points, point_numbers, bad_numbers, start_strike 
 
@@ -753,10 +764,10 @@ class Aligner:
         A_cam_ant = self.stored_alignment_matrices[start_strike]
         strike_A_cam_ant = np.linalg.matmul(A_cam_ant, A_cam2_to_cam1)
 
-        # 2024/11/26
-        # this should be cleaned up. If strikes aren't prepared in order
-        # this step will fail
-        self.stored_alignment_matrices[strike_number] = strike_A_cam_ant
+        # # 2024/11/26
+        # # this should be cleaned up. If strikes aren't prepared in order
+        # # this step will fail
+        # self.stored_alignment_matrices[strike_number] = strike_A_cam_ant
 
         result_dict = {
             "mesh_filename": self.mesh_filename,
@@ -769,7 +780,7 @@ class Aligner:
             "alignment_settings": self.alignment_settings,
             "A_cam_to_ant_start": strike_A_cam_ant,
             "A_cam_to_ant_start_strike1": self.A_cam_ant,
-            "stable_points": self.stable_points[point_numbers],
+            "stable_points": self.stable_points, #[point_numbers],
             "point_numbers": point_numbers,
             "removed_points": bad_numbers,
             "ant_scale": self.ant_scale,

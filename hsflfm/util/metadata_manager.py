@@ -110,7 +110,7 @@ class MetadataManager:
     def mandible_order(self, strike_number):
         strike_data = self.get_strike_data(strike_number)
         key = "Mandible Order \n(Left, Right, Simultaneous)"
-        return strike_data[key].values[0]
+        return strike_data[key].values[0].strip()
     
     # these will always be returned as L, R
     def mandible_start_frames(self, strike_number):
@@ -122,10 +122,13 @@ class MetadataManager:
         f1 = strike_data[key1].values[0]
 
         # TODO: edit this once we know how to handle "S"
-        if self.mandible_order in ["L", "L only", "S"]:
+        order = self.mandible_order(strike_number)
+        if order in np.asarray(["L", "L only", "S"]):
             frames = (f0, f1)
-        else:
+        elif order in np.asarray(["R", "R only"]):
             frames = (f1, f0)
+        else:
+            raise ValueError(f"{order} not an expected order")
 
         return frames
 

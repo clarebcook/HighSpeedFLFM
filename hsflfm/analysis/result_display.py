@@ -631,3 +631,5 @@ class ResultPlotter:
             )
 
         fig.show()
+
+        return fig

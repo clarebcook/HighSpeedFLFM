@@ -3,4 +3,6 @@
 **\.DS_Store
 temporary_result_storage*
 temp_loaded_results*
-untracked_test_scripts*
+untracked*
+alignment_results* 
+complete_results*

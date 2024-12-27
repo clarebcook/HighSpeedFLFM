@@ -17,7 +17,7 @@ import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
 
 # specify specimen name
-specimen_number = "20240503_OB_3"
+specimen_number = "20240507_OB_3"
 data_manager = MetadataManager(specimen_number=specimen_number)
 
 # specify if we're selecting alignment points or paint dots
@@ -47,7 +47,7 @@ elif point_type == "paint":
     name = "match_points"
     point_types = None
 # adding demo right now to avoid overwriting past data
-save_name = save_folder + f"/{name}"# _demo"
+save_name = save_folder + f"/{name}"  # _demo"
 
 # prepare the maps
 calibration_filename = data_manager.calibration_filename

@@ -167,6 +167,14 @@ class ResultManager:
             diff_c = diff_c**2
         return torch.mean(torch.abs(diff_c), axis=-1)
 
+    # this is what we're currently using as the main error score
+    # average flow error squared from the top two cameras
+    @property
+    def error_scores(self):
+        average_flow_sq = self.flow_diff_around_strike(half_length=12, square=True)
+        _, sorted = sort_by_camera(average_flow_sq[:, :, None], treat_individually=True)
+        return torch.mean(sorted[:, :2].squeeze(), axis=1)
+
 
 class BulkAnalyzer:
     def __init__(self, all_result_filenames):

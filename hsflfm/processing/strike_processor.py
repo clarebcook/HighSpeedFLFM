@@ -374,7 +374,8 @@ class StrikeProcessor:
 
         # Step 3: use stable ratio to give weighting to points
         stable_ratio = self.global_movement_settings["stable_ratio"]
-        sp = torch.asarray(self.result_info["stable_points"]).to(bool)
+        sp = torch.asarray(self.result_info["stable_points"]).to(bool)[
+            torch.asarray(self.result_info["point_numbers"])]
         sp = sp & self.low_loss_points
         nsp = ~sp & self.low_loss_points
 

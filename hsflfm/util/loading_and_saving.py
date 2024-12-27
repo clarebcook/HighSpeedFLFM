@@ -160,3 +160,19 @@ def load_split_video(
     for key, indices in all_indices.items():
         videos[key] = full_video[:, indices[0] : indices[1], indices[2] : indices[3]]
     return videos
+
+def create_video_from_numpy_array(
+    numpy_array, output_filename, fps=30, adapt_color=True
+):
+    height, width = numpy_array.shape[1:3]
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    video_writer = cv2.VideoWriter(output_filename, fourcc, fps, (width, height), False)
+
+    for frame in numpy_array:
+        if adapt_color:
+            sframe = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        else:
+            sframe = frame
+        video_writer.write(sframe)
+
+    video_writer.release()

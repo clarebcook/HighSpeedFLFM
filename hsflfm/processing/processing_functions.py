@@ -43,6 +43,29 @@ def world_frame_to_pixel(system, point, camera=2):
     return pixels
 
 
+def enforce_self_consistency(match_points, system):
+    # this could eventually be written to not necessarilyl
+    # maintain the location of the point in the reference image
+    ref_camera = system.reference_camera 
+
+    start_pixels = np.asarray(match_points[ref_camera])
+    heights = get_point_locations(system, match_points)[:, 2]
+    heights = np.repeat(heights[:, None], 2, 1)
+    vd0, vd1 = system.get_shift_slopes(ref_camera, start_pixels[:, 0], start_pixels[:, 1])
+    ref_shifts = heights * np.concatenate((vd0[:, None], vd1[:, None]), axis=1)
+    start_pixels = start_pixels + ref_shifts
+
+    adjusted_match_points = {}
+    for camera in match_points.keys():
+        s0, s1 = system.get_pixel_shifts(camera, start_pixels[:, 0], start_pixels[:, 1])
+        pixels = start_pixels - np.concatenate((s0[:, None], s1[:, None]), axis=1)
+
+        v0, v1 = system.get_shift_slopes(camera, pixels[:, 0], pixels[:, 1])
+        shifts = heights * np.concatenate((v0[:, None], v1[:, None]), axis=1)
+        pixels = pixels - shifts
+        adjusted_match_points[camera] = pixels 
+    return adjusted_match_points
+
 def get_point_flow_vector(video, point, flow_parameters, crop_size=(21, 21)):
     startx0 = int(point[0]) - int(crop_size[0] / 2)
     endx0 = startx0 + crop_size[0]
