@@ -141,7 +141,9 @@ class FrameViewer(QtWidgets.QWidget):
 
     def get_filename(self):
         # very hard-coded, we'll adjust this
-        folder = "../test_results_from_manual_strike_transfer_GUI"
+        folder = (
+            "../temp_redone_results"  # test_results_from_manual_strike_transfer_GUI"
+        )
         if not os.path.exists(folder):
             os.mkdir(folder)
         spec_folder = folder + f"/{self.cur_specimen_number}"
@@ -174,11 +176,8 @@ class FrameViewer(QtWidgets.QWidget):
 
         filename = self.get_filename()
 
-        # TODO: get rid of this
-        if self.strike_number > 8:
-            save_dictionary(self.current_info, filename)
-        else:
-            print("WARNING WARNING NOT SAVING")
+        save_dictionary(self.current_info, filename)
+        print("WARNING WARNING NOT SAVING")
 
         self.go_to_next_strike()
         self.update_frame()
@@ -391,7 +390,6 @@ class FrameViewer(QtWidgets.QWidget):
             self.cur_specimen_number == "20240506_OB_3"
             and self.strike_numbers[self.strike_index] == 2
         ):
-            print("here!")
             self.strike_index += 1
         print(self.cur_specimen_number, self.strike_numbers[self.strike_index])
         self.prepare_strike()
@@ -469,7 +467,7 @@ class FrameViewer(QtWidgets.QWidget):
 
         # TODO: get rid of this again
         if self.strike_number <= 8 and self.strike_number > 1:
-            filename = f"../test_results_from_manual_strike_transfer_GUI/20240506_OB_1/strike_{self.strike_number}.json"
+            filename = f"../temp_redone_results/{self.cur_specimen_number}/strike_{self.strike_number}.json"
             self.current_info = load_dictionary(filename)
             print("WARNING LOADING PAST INFORMATION")
 
@@ -806,7 +804,7 @@ if __name__ == "__main__":
         #    "../temporary_result_storage_5/20240503_OB_3/strike_13_results.json",
         #    "../temporary_result_storage_5/20240503_OB_3/strike_14_results.json",
         # ],
-        specimen_numbers=["20240506_OB_1"],  # , "20240503_OB_3"],
+        specimen_numbers=["20240507_OB_2"],  # , "20240503_OB_3"],
         heights=heights,
     )
     viewer.show()

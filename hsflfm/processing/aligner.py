@@ -332,7 +332,8 @@ class Aligner:
         return loss
 
     def refine_matrix(
-        self, A_cam_ant_init, ant_scale_init, camera_points, change_scale=True
+        self, A_cam_ant_init, ant_scale_init, camera_points, change_scale=True,
+        *args, **kwargs
     ):
         sample_vertices, _ = trimesh.sample.sample_surface(
             self.mesh,
@@ -361,7 +362,8 @@ class Aligner:
             init_vals=init_guess,
         )
 
-        res = minimize(fun=min_function, x0=init_guess, bounds=bounds)
+        res = minimize(fun=min_function, x0=init_guess, bounds=bounds,
+                       *args, **kwargs)
         x2, y2, z2, roll2, pitch2, yaw2, scale2 = res.x
 
         A = matrix_from_rot_trans(x2, y2, z2, roll2, pitch2, yaw2)

@@ -51,8 +51,16 @@ class ResultPlotter:
                 item = np.mean(item, axis=-1)
             self.videos[key] = item
 
-    def scatter_over_image(self, values, highlight_point=None, cam=2,
-                           good_only=True, *args, **kwargs):
+    def scatter_over_image(
+        self,
+        values,
+        highlight_point=None,
+        cam=2,
+        good_only=True,
+        crop=True,
+        *args,
+        **kwargs,
+    ):
         img = self.data_manager.get_start_images(strike_number=self.strike_number)[cam]
         mp = torch.asarray(self.result_info["match_points"][cam])
 
@@ -63,7 +71,6 @@ class ResultPlotter:
         plt.imshow(img, cmap="gray")
         plt.scatter(mp[:, 1], mp[:, 0], c=values, *args, **kwargs)
 
-        crop = True
         if crop:
             buffer = 22
             startx = torch.min(mp[:, 0]) - buffer
@@ -83,7 +90,9 @@ class ResultPlotter:
             plt.gca().add_patch(circ)
         return fig
 
-    def scatter_values(self, values, highlight_point=None, good_only=True, *args, **kwargs):
+    def scatter_values(
+        self, values, highlight_point=None, good_only=True, *args, **kwargs
+    ):
         ant_start_locs = self.result_manager.point_start_locs_ant_mm
 
         if self.good_indices is not None and good_only:
@@ -126,18 +135,20 @@ class ResultPlotter:
 
         return fig
 
-    def scatter_peak_disp(self, dim=2, with_image=False, good_only=True, *args, **kwargs):
+    def scatter_peak_disp(
+        self, dim=2, with_image=False, good_only=True, *args, **kwargs
+    ):
         peak_displacement = self.result_manager.peak_displacements(dim=dim)
 
         if good_only and self.good_indices is not None:
             peak_displacement = peak_displacement[self.good_indices]
 
         if with_image:
-            self.scatter_over_image(peak_displacement, good_only=good_only,
-                                    *args, **kwargs)
+            self.scatter_over_image(
+                peak_displacement, good_only=good_only, *args, **kwargs
+            )
         else:
-            self.scatter_values(peak_displacement, good_only=good_only,
-                                *args, **kwargs)
+            self.scatter_values(peak_displacement, good_only=good_only, *args, **kwargs)
 
     def plot_camera_weight(self, point_number):
         point_index = torch.where(
@@ -371,7 +382,7 @@ class ResultPlotter:
         force_arrow_after_strike=True,
         return_crops=False,
         white_buffer=5,
-        good_only=True
+        good_only=True,
     ):
         if self.videos is None:
             self.load_video()
@@ -582,6 +593,7 @@ class ResultPlotter:
         points_on_surface=False,
         use_display_mesh=True,
         marker_dict={"size": 5, "opacity": 1, "colorscale": "Turbo"},
+        show=True,
     ):
         if points_on_surface:
             points = ResultPlotter.move_points_to_surface(points)
@@ -630,6 +642,7 @@ class ResultPlotter:
                 )
             )
 
-        fig.show()
+        if show:
+            fig.show()
 
         return fig

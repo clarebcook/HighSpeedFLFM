@@ -273,6 +273,48 @@ class BulkAnalyzer:
 
         self.all_results = loaded_results
 
+    # this is a little hand-wavy
+    # but it's been a useful way to compare spatial trends
+    # for strikes with different strength
+    def compute_strength_scores(self, error_threshold=0.015, k=15):
+        all_error_scores = self.error_scores
+        good_indices = torch.where(all_error_scores < error_threshold)
+        _, neighbor_indices = self.get_closest_point_indices(k=k, indices=good_indices)
+
+        strength_scores = torch.zeros_like(self.error_scores)
+        named_scores = {}
+
+        # loop through the represented strikes
+        specimens = np.unique(self.all_results["specimen_number"])
+        for specimen in specimens:
+            named_scores[specimen] = {}
+            specimen_indices = self.get_specimen_indices(specimen)
+            strikes = np.unique(self.all_results["strike_number"][specimen_indices])
+            for strike in strikes:
+                strike_all_indices = self.get_specimen_indices(specimen, strike)
+                strike_indices = np.intersect1d(strike_all_indices, good_indices)
+
+                strike_neighbor_indices = neighbor_indices[strike_indices]
+
+                ratios = np.zeros(strike_neighbor_indices.shape[0])
+                for pi, neighbor_index in enumerate(strike_neighbor_indices):
+                    displacements = self.all_results["displacement"][neighbor_index]
+                    disp_norm = np.linalg.norm(displacements, axis=-1)
+                    point_disp = np.linalg.norm(
+                        self.all_results["displacement"][strike_indices[pi]]
+                    )
+                    ratios[pi] = point_disp / np.mean(disp_norm)
+                score = np.mean(ratios)
+
+                named_scores[specimen][strike] = score
+
+                # assign the score
+                strength_scores[strike_all_indices] = score
+
+        self.all_results["strength_score"] = strength_scores
+
+        return named_scores
+
     def get_top_values(self, array_type, num_cams=2, treat_individually=True):
         okay_keys = [
             "flow_error_at_peak",
