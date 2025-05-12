@@ -1,0 +1,24 @@
+name: hsflfm_cpu
+channels:
+  - https://conda.anaconda.org/t/ra-cbeb9c0d-37dd-43da-9f38-558244a1fdc0/ramonaoptics
+  - conda-forge
+  - defaults
+dependencies:
+  - mamba
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cpuonly
+  - ipython
+  - scipy
+  - matplotlib
+  - opencv
+  - trimesh
+  - shapely
+  - plotly
+  - tqdm
+  - pandas
+  - xarray
+  - conda-forge::qtpy
+  - openpyxl
+prefix: C:\Users\clare\anaconda3\envs\hsflfm_cpu
