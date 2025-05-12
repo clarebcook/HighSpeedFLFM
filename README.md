@@ -20,6 +20,6 @@ conda activate hsflfm_cpu
 conda develop .
 ```
 
-Note that using `conda develop` requires install `conda-build`. This can be done with: 
+Note that using `conda develop` requires `conda-build` to be installed. This can be done with: 
 ```
 conda install conda-build
