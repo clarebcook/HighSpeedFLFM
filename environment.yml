@@ -1,6 +1,5 @@
 name: hsflfm_cpu
 channels:
-  - https://conda.anaconda.org/t/ra-cbeb9c0d-37dd-43da-9f38-558244a1fdc0/ramonaoptics
   - conda-forge
   - defaults
 dependencies:
