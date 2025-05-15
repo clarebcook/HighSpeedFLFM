@@ -20,4 +20,3 @@ dependencies:
   - xarray
   - conda-forge::qtpy
   - openpyxl
-prefix: C:\Users\clare\anaconda3\envs\hsflfm_cpu
