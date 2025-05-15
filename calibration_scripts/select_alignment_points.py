@@ -1,18 +1,18 @@
 from hsflfm.config import home_directory
 from hsflfm.calibration import CalibrationInfoManager
-from hsflfm.util import load_image_set
+from hsflfm.util import load_image_set, MetadataManager
 
 from matplotlib import pyplot as plt
 from PIL import Image
 
-calibration_folder = home_directory + "/Videos/20240427/20240427_calibration"
-calibration_filename = "delete_calibration_information"  # calibration_folder + '/calibration_information'
+specimen = "20250226_OB_2"
+mm = MetadataManager(specimen)
+calibration_filename = mm.calibration_filename
+calibration_folder = mm.calibration_folder
 calibration_manager = CalibrationInfoManager(calibration_filename)
+image_filename = mm.light_calibration_filename
 
 image_numbers = calibration_manager.image_numbers
-# frequently easiest to use an ant instead of the graph
-# could clean this up to just automatically select one of the ant images
-image_filename = home_directory + '/Videos/20240427/OB_5/20240427_OB_5_alignment_ring_0.tiff' 
 
 points_dict = {}
 
@@ -57,7 +57,7 @@ def select_point(event):
 
 fig, (ax0, ax) = plt.subplots(1, 2)
 im = Image.open(image_filename)
-ax0.imshow(im, cmap='gray')
+ax0.imshow(im, cmap="gray")
 image = get_current_image()
 im = ax.imshow(image)
 fig.suptitle(get_title())

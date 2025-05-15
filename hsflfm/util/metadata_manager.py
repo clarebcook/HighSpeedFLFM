@@ -19,7 +19,7 @@ class MetadataManager:
 
     @property
     def strike_numbers(self):
-        return self.specimen_data["Strike #"].values
+        return np.sort(self.specimen_data["Strike #"].values)
 
     @property
     def calibration_folder(self):

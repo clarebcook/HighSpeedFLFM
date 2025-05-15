@@ -361,7 +361,7 @@ def get_vertices_matrices(all_vertices, expected_spacing):
             if next_vertices is not None:
                 # could revisit the 0.3
                 ref_index = pick_reference_point(
-                    matrix, next_vertices, threshold=0.2 * expected_spacing
+                    matrix, next_vertices, threshold=0.4 * expected_spacing
                 )
                 ref_point = matrix[ref_index]
 

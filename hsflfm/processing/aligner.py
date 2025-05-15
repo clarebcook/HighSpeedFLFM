@@ -6,6 +6,9 @@ from hsflfm.ant_model import (
     M_mesh_ant,
     key_features_ant,
     stable_vertices_ant,
+    mesh_with_mandibles_filename,
+    mesh_scale,
+    display_mesh_scale,
 )
 from hsflfm.calibration import FLF_System
 from hsflfm.util import (
@@ -15,28 +18,28 @@ from hsflfm.util import (
     matmul,
     matrix_from_rot_trans,
     rot_trans_from_matrix,
-    cross_image
+    cross_image,
 )
 
 from .processing_functions import (
     get_point_locations,
     match_points_between_images,
     world_frame_to_pixel,
-    enforce_self_consistency
+    enforce_self_consistency,
 )
 
 import trimesh
 import cv2
+import math
 import numpy as np
 import functools
 import scipy
 from scipy.spatial import KDTree
 from scipy.optimize import minimize
 from shapely.geometry import Polygon, Point
+import plotly.graph_objects as go
 
-# don't totally understand this number, but it's some sort of scaling difference between the
-# mesh used here, and the original mesh where the alignment points were chosen
-mesh_scale = 100
+display_mesh_filename = home_directory + "/" + mesh_with_mandibles_filename
 
 # default settings
 default_alignment_settings = {
@@ -63,11 +66,11 @@ default_alignment_settings = {
     # for x, y, z, roll, pitch, yaw, scale
     "deviation_weights": np.asarray([5e1, 5e1, 5e1, 0, 0, 5e4, 5e-4]),
     "base_loss_weight": 1e-6,
-    "point_match_sequentially": True, 
+    "point_match_sequentially": True,
     "reshift_during_inter_strike_point_matching": True,
     "enforce_stiff_transform": True,
-    # this will naturally be true if "enforce_stiff_transform" is True 
-    "enforce_self_consistency": True, 
+    # this will naturally be true if "enforce_stiff_transform" is True
+    "enforce_self_consistency": True,
 }
 
 # individual start points
@@ -88,32 +91,33 @@ default_individual_base_alignment = {
     ],
     "20240507_OB_2": [3.056, 1.825, -0.19818, -0.14607, -0.29805, 2.97, 1502.546848],
     "20240503_OB_3": [2.559, 2.3911, -0.4566, -0.13919, 0.2422, -3.075, 1619.64],
+    "20250212_OB_1": [3.276, 2.441, 0.714, 0.286, -0.070, 3.1, 1724],
 }
 
-# this is to help with alignment between strikes 
+# this is to help with alignment between strikes
 # for a small number of ants, there was a very large shift between strikes
 # thaa can be challenging to find automatically
 # so it can be helpful to provide a rough alignment
 # this can be cleaned up more later if necessary, but for now this impacts
-# a small enough number of videos that this approach is fine 
+# a small enough number of videos that this approach is fine
 default_rough_interstrike_alignment = {
     "20240507_OB_2": {
-        1: (0, 0), 
-        2: (0, 0), 
-        3: (0, 0), 
-        4: (0, 0), 
-        5: (0, 0), 
-        6: (0, 0), 
-        7: (0, 0), 
-        8: (-50, -15), 
-        9: (-50, -15), 
-        10:(-50, -15), 
-        11:(-50, -15), 
-        12:(-50, -15), 
-        13:(-50, -15), 
-        14:(-50, -15), 
-        15:(-50, -15), 
-        16:(-50, -15), 
+        1: (0, 0),
+        2: (0, 0),
+        3: (0, 0),
+        4: (0, 0),
+        5: (0, 0),
+        6: (0, 0),
+        7: (0, 0),
+        8: (-50, -15),
+        9: (-50, -15),
+        10: (-50, -15),
+        11: (-50, -15),
+        12: (-50, -15),
+        13: (-50, -15),
+        14: (-50, -15),
+        15: (-50, -15),
+        16: (-50, -15),
     }
 }
 
@@ -128,18 +132,12 @@ default_flow_settings = {
 }
 
 individual_flow_settings = {
-    "20240506_OB_1": {
-        "poly_n": 7,
-        "poly_sigma": 1.7
-    },
-    "20240417_OB_1": {
-        "poly_n": 3, 
-        "poly_sigma": 1.2
-    },
+    "20240506_OB_1": {"poly_n": 7, "poly_sigma": 1.7},
+    "20240417_OB_1": {"poly_n": 3, "poly_sigma": 1.2},
     "20240418_OB_1": {
         "poly_n": 3,
         "poly_sigma": 1.2,
-    }
+    },
 }
 
 save_keys = [
@@ -162,13 +160,11 @@ save_keys = [
     "base_alignment_values",
     # alignment is generally done sequentially with strikes, but if points are matched poorly
     # on one strike, we may go back a number for alignment. So that information
-    # should be stored 
+    # should be stored
     "aligned_from_strike_number",
     "rough_interstrike_alignment",
-    "strike_alignment_flow_settings"
-   
+    "strike_alignment_flow_settings",
 ]
-
 
 
 # if "use_individual_base_alignment" is False, "base_alignment_values" won't be used
@@ -193,7 +189,7 @@ class Aligner:
         self.data_manager = MetadataManager(specimen_number=specimen_name)
 
         self.match_points = load_dictionary(self.data_manager.match_points_filename)
-        
+
         alignment_points = load_dictionary(self.data_manager.alignment_points_filename)
 
         self.system = FLF_System(self.data_manager.calibration_filename)
@@ -236,7 +232,7 @@ class Aligner:
         # this can hold the match points from a range of videos
         # so we can theoretically track points sequentially between videos
         # the key will be the strike number
-        p = self.match_points.copy() 
+        p = self.match_points.copy()
         for key, item in p.items():
             p[key] = np.asarray(item)[:, :2]
         self.stored_match_points = {1: p}
@@ -247,14 +243,19 @@ class Aligner:
         self.A_cam_ant = None
         self.ant_scale = None
 
-        if use_rough_interstrike_alignment and specimen_name in default_rough_interstrike_alignment:
-            self.rough_interstrike_alignment = default_rough_interstrike_alignment[specimen_name]
+        if (
+            use_rough_interstrike_alignment
+            and specimen_name in default_rough_interstrike_alignment
+        ):
+            self.rough_interstrike_alignment = default_rough_interstrike_alignment[
+                specimen_name
+            ]
         else:
-            self.rough_interstrike_alignment = {} 
+            self.rough_interstrike_alignment = {}
             for strike_num in self.data_manager.strike_numbers:
                 self.rough_interstrike_alignment[strike_num] = (0, 0)
 
-        self.flow_settings = default_flow_settings.copy() 
+        self.flow_settings = default_flow_settings.copy()
         if specimen_name in individual_flow_settings:
             ifs = individual_flow_settings[specimen_name]
             for key, item in ifs.items():
@@ -332,8 +333,13 @@ class Aligner:
         return loss
 
     def refine_matrix(
-        self, A_cam_ant_init, ant_scale_init, camera_points, change_scale=True,
-        *args, **kwargs
+        self,
+        A_cam_ant_init,
+        ant_scale_init,
+        camera_points,
+        change_scale=True,
+        *args,
+        **kwargs
     ):
         sample_vertices, _ = trimesh.sample.sample_surface(
             self.mesh,
@@ -362,8 +368,7 @@ class Aligner:
             init_vals=init_guess,
         )
 
-        res = minimize(fun=min_function, x0=init_guess, bounds=bounds,
-                       *args, **kwargs)
+        res = minimize(fun=min_function, x0=init_guess, bounds=bounds, *args, **kwargs)
         x2, y2, z2, roll2, pitch2, yaw2, scale2 = res.x
 
         A = matrix_from_rot_trans(x2, y2, z2, roll2, pitch2, yaw2)
@@ -371,8 +376,7 @@ class Aligner:
         # switch back
         A = np.linalg.inv(A)
         return A, scale2
-    
-    
+
     def align_strike(
         self,
         strike_number,
@@ -410,9 +414,13 @@ class Aligner:
                 # this is (0, 0) for most strikes
                 rough_shift_p = self.rough_interstrike_alignment[start_strike]
                 rough_shift_n = self.rough_interstrike_alignment[strike_number]
-                rough_shift = (rough_shift_n[0] - rough_shift_p[0],
-                               rough_shift_n[1] - rough_shift_p[1])
-                translation_matrix = np.float32([[1, 0, rough_shift[0]], [0, 1, rough_shift[1]]])
+                rough_shift = (
+                    rough_shift_n[0] - rough_shift_p[0],
+                    rough_shift_n[1] - rough_shift_p[1],
+                )
+                translation_matrix = np.float32(
+                    [[1, 0, rough_shift[0]], [0, 1, rough_shift[1]]]
+                )
                 prev_image = cv2.warpAffine(
                     prev_image.T, translation_matrix, prev_image.shape[:2]
                 ).T
@@ -420,20 +428,22 @@ class Aligner:
 
                 # this could get thrown off by consistent background or mandibles
                 # so we'll crop in around the actual points
-                buffer = 15 
-                minx = int(np.min(pmp[:, 0]) - buffer) 
-                maxx = int(np.max(pmp[:, 0]) + buffer) 
-                miny = int(np.min(pmp[:, 1]) - buffer) 
+                buffer = 15
+                minx = int(np.min(pmp[:, 0]) - buffer)
+                maxx = int(np.max(pmp[:, 0]) + buffer)
+                miny = int(np.min(pmp[:, 1]) - buffer)
                 maxy = int(np.max(pmp[:, 1]) + buffer)
 
                 minx = max(minx, 0)
-                maxx = min(maxx, prev_image.shape[0]) 
+                maxx = min(maxx, prev_image.shape[0])
                 miny = max(miny, 0)
                 maxy = min(maxy, prev_image.shape[1])
 
                 i0 = prev_image[minx:maxx, miny:maxy].copy()
                 i1 = new_image[minx:maxx, miny:maxy].copy()
                 shiftx, shifty = cross_image(i1, i0)
+                shiftx = np.sign(shiftx) * math.floor(np.abs(shiftx))
+                shifty = np.sign(shifty) * math.floor(np.abs(shifty))
 
                 translation_matrix = np.float32([[1, 0, shiftx], [0, 1, shifty]])
                 prev_image = cv2.warpAffine(
@@ -482,60 +492,68 @@ class Aligner:
         # and drop those with large errors
         if self.alignment_settings["enforce_stiff_transform"]:
             prev_camera_locations = get_point_locations(self.system, prev_match_points)
-            new_camera_locations = matmul(np.linalg.inv(A_cam2_to_cam1), prev_camera_locations)
+            new_camera_locations = matmul(
+                np.linalg.inv(A_cam2_to_cam1), prev_camera_locations
+            )
 
             # TODO: update world_frame_to_pixel so we don't have to loop so much
             strike_match_points = {}
             for camera in prev_match_points.keys():
                 points = np.zeros((len(prev_match_points[camera]), 2))
                 for i, p in enumerate(new_camera_locations):
-                    pixels = np.asarray(world_frame_to_pixel(self.system, p, camera)).squeeze()
+                    pixels = np.asarray(
+                        world_frame_to_pixel(self.system, p, camera)
+                    ).squeeze()
                     points[i] = pixels
                 strike_match_points[camera] = points
 
             point_numbers = self.stored_point_numbers[start_strike]
-        elif self.alignment_settings["enforce_self_consistency"]: 
+        elif self.alignment_settings["enforce_self_consistency"]:
             # good_match_points = strike_match_points[strike_point_indices]
             # new_camera_locations = get_point_locations(self.system, strike_match_points)[strike_point_indices]
             # for camera in strike_match_points.keys():
             #     points = np.zeros((len(strike_point_indices), 2))
             #     for i, p in enumerate(new_camera_locations):
-            #         pixels = np.asarray(world_frame_to_pixel(self.system, p, camera)).squeeze() 
-            #         points[i] = pixels 
+            #         pixels = np.asarray(world_frame_to_pixel(self.system, p, camera)).squeeze()
+            #         points[i] = pixels
             #     strike_match_points[camera] = points
             for key, item in strike_match_points.items():
                 strike_match_points[key] = np.asarray(item)[strike_point_indices]
-            strike_match_points = enforce_self_consistency(strike_match_points, self.system)
-            point_numbers = self.stored_point_numbers[start_strike][strike_point_indices]
+            strike_match_points = enforce_self_consistency(
+                strike_match_points, self.system
+            )
+            point_numbers = self.stored_point_numbers[start_strike][
+                strike_point_indices
+            ]
 
         else:
             for key, item in strike_match_points.items():
                 strike_match_points[key] = np.asarray(item)[strike_point_indices]
 
-            point_numbers = self.stored_point_numbers[start_strike][strike_point_indices]
+            point_numbers = self.stored_point_numbers[start_strike][
+                strike_point_indices
+            ]
 
         self.stored_point_numbers[strike_number] = point_numbers
         self.stored_match_points[strike_number] = strike_match_points
 
-        # TODO: update rough alignment here! 
+        # TODO: update rough alignment here!
         # I guess for now... we're just ignoring that shifts could be due to z movement
-        # and just saving 1 rough alignment for everyone 
+        # and just saving 1 rough alignment for everyone
         all_avg_diff = None
         for key in strike_match_points.keys():
             strike1_point_numbers = self.stored_point_numbers[1]
-            indices1 = np.where(np.isin(strike1_point_numbers, point_numbers))[0] 
+            indices1 = np.where(np.isin(strike1_point_numbers, point_numbers))[0]
             indices2 = np.where(np.isin(point_numbers, strike1_point_numbers))[0]
             mp1 = self.stored_match_points[1][key][indices1]
             mp2 = strike_match_points[key][indices2]
             diff = mp2 - mp1
             avg_diff = np.mean(diff, axis=0)
             if all_avg_diff is None:
-                all_avg_diff = avg_diff 
+                all_avg_diff = avg_diff
             else:
-                all_avg_diff += avg_diff 
+                all_avg_diff += avg_diff
         all_avg_diff /= len(strike_match_points)
-
-
 
         self.rough_interstrike_alignment[int(strike_number)] = all_avg_diff
 
@@ -543,12 +561,14 @@ class Aligner:
         strike_A_cam_ant = np.linalg.matmul(A_cam_ant, A_cam2_to_cam1)
         self.stored_alignment_matrices[strike_number] = strike_A_cam_ant
 
-        return A_cam2_to_cam1, strike_match_points, point_numbers, bad_numbers, start_strike 
+        return (
+            A_cam2_to_cam1,
+            strike_match_points,
+            point_numbers,
+            bad_numbers,
+            start_strike,
+        )
 
-
-            
-
-    
     # def align_strike(
     #     self,
     #     strike_number,
@@ -557,7 +577,7 @@ class Aligner:
     #     flow_parameters=None,
     #     reshift=True,
     # ):
-    #     
+    #
     #     print("2024/11/21 you should do a rough alignment with larger window size, then refine with smaller window size")
     #     run = True
     #     bad_numbers = []
@@ -569,21 +589,17 @@ class Aligner:
     #     elif match_sequentially and start_strike is None:
     #         start_strike = max(1, strike_number - 1)
 
-
     #     if start_strike not in self.stored_match_points:
     #         self.align_strike(start_strike, match_sequentially=match_sequentially)
-
 
     #     strike_match_points = {}
     #     prev_match_points = self.stored_match_points[start_strike]
     #     prev_images = self.data_manager.get_start_images(strike_number=start_strike)
     #     new_images = self.data_manager.get_start_images(strike_number)
 
-
     #     for key, prev_image in prev_images.items():
     #         new_image = new_images[key]
     #         pmp = np.asarray(prev_match_points[key])[:, :2]
-
 
     #         new_points = match_points_between_images(
     #             prev_image,
@@ -623,13 +639,11 @@ class Aligner:
 
     #         strike_match_points[key] = new_points
 
-
     #     # convert to camera points
     #     strike_locations = get_point_locations(self.system, strike_match_points)
     #     prev_strike_locations = get_point_locations(self.system, prev_match_points)
 
     #     strike_point_indices = np.arange(len(prev_match_points[2]))
-
 
     #     while run:
     #         # fit a transformation between the two
@@ -639,13 +653,11 @@ class Aligner:
     #             allow_scale=False,
     #         )
 
-
     #         # look at error
     #         diff = np.linalg.norm(
     #             prev_strike_locations[strike_point_indices] - transformed_points,
     #             axis=1,
     #         )
-
 
     #         bp = np.where(diff > threshold)[0]
 
@@ -656,17 +668,14 @@ class Aligner:
     #         else:
     #             run = False
 
-
     #     for key, item in strike_match_points.items():
     #         strike_match_points[key] = np.asarray(item)[strike_point_indices]
-
 
     #     self.stored_match_points[strike_number] = strike_match_points
     #     prev_point_numbers = self.stored_point_numbers[start_strike]
 
     #     point_numbers = prev_point_numbers[strike_point_indices]
     #     self.stored_point_numbers[strike_number] = point_numbers
-
 
     #     return A_cam2_to_cam1, strike_match_points, point_numbers, bad_numbers, start_strike
 
@@ -750,19 +759,27 @@ class Aligner:
         self.stable_points = stable
         return stable
 
-    def prepare_strike_results(self, strike_number, start_strike=None):
+    def prepare_strike_results(self, strike_number, start_strike=None, show=False):
         if self.A_cam_ant is None or self.ant_scale is None:
             self.run_strike1_alignment()
         if self.stable_points is None:
             self.determine_stable_points()
 
-        A_cam2_to_cam1, strike_match_points, point_numbers, bad_numbers, start_strike = (
-            self.align_strike(strike_number, 
-                              match_sequentially=self.alignment_settings["point_match_sequentially"],
-                              reshift=self.alignment_settings["reshift_during_inter_strike_point_matching"],
-                              start_strike=start_strike)
+        (
+            A_cam2_to_cam1,
+            strike_match_points,
+            point_numbers,
+            bad_numbers,
+            start_strike,
+        ) = self.align_strike(
+            strike_number,
+            match_sequentially=self.alignment_settings["point_match_sequentially"],
+            reshift=self.alignment_settings[
+                "reshift_during_inter_strike_point_matching"
+            ],
+            start_strike=start_strike,
         )
-        
+
         A_cam_ant = self.stored_alignment_matrices[start_strike]
         strike_A_cam_ant = np.linalg.matmul(A_cam_ant, A_cam2_to_cam1)
 
@@ -782,7 +799,7 @@ class Aligner:
             "alignment_settings": self.alignment_settings,
             "A_cam_to_ant_start": strike_A_cam_ant,
             "A_cam_to_ant_start_strike1": self.A_cam_ant,
-            "stable_points": self.stable_points, #[point_numbers],
+            "stable_points": self.stable_points,  # [point_numbers],
             "point_numbers": point_numbers,
             "removed_points": bad_numbers,
             "ant_scale": self.ant_scale,
@@ -791,15 +808,56 @@ class Aligner:
             "base_alignment_values": self.base_alignment_values,
             "aligned_from_strike_number": start_strike,
             "rough_interstrike_alignment": self.rough_interstrike_alignment,
-            "strike_alignment_flow_settings": self.flow_settings
+            "strike_alignment_flow_settings": self.flow_settings,
         }
 
         for key in save_keys:
             assert key in result_dict
 
+        if show:
+            camera_points = get_point_locations(self.system, strike_match_points)
+            mesh_points = self.move_points_to_mesh(
+                strike_A_cam_ant, self.ant_scale, camera_points
+            )
+
+            # this is largely copied from functions in analysis
+            # so there's likely a better way to handle this
+            display_mesh = trimesh.load(display_mesh_filename)
+            scale_ratio = display_mesh_scale / mesh_scale
+            mesh_points = mesh_points * scale_ratio
+
+            mesh_x = display_mesh.vertices[:, 0]
+            mesh_y = display_mesh.vertices[:, 1]
+            mesh_z = display_mesh.vertices[:, 2]
+            mesh_faces = display_mesh.faces
+
+            fig = go.Figure(
+                data=[
+                    go.Mesh3d(
+                        x=mesh_x,
+                        y=mesh_y,
+                        z=mesh_z,
+                        i=mesh_faces[:, 0],
+                        j=mesh_faces[:, 1],
+                        k=mesh_faces[:, 2],
+                        opacity=0.7,
+                        color="lightgray",
+                    )
+                ]
+            )
+            fig.add_trace(
+                go.Scatter3d(
+                    x=mesh_points[:, 0],
+                    y=mesh_points[:, 1],
+                    z=mesh_points[:, 2],
+                    mode="markers",
+                    marker={"size": 2, "opacity": 1, "color": "red"},
+                )
+            )
+            fig.show()
         return result_dict
 
 
 if __name__ == "__main__":
     a = Aligner("20240502_OB_3")
-    example_results = a.prepare_strike_results(strike_number=2)
+    example_results = a.prepare_strike_results(strike_number=2, show=True)

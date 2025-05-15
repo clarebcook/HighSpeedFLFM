@@ -65,7 +65,7 @@ class FLF_System:
     def get_shift_slopes(self, camera_number, x_coords, y_coords):
         coeff0, coeff1 = self._get_slope_coeffs(camera_number)
         # TODO: maybe we don't always need to re-generate the matrix?
-        slope_matrix = generate_A_matrix(self.shift_order, X=y_coords, Y=x_coords)
+        slope_matrix = generate_A_matrix(self.slope_order, X=y_coords, Y=x_coords)
 
         v1 = np.matmul(slope_matrix, coeff1)
         v0 = np.matmul(slope_matrix, coeff0)
@@ -248,7 +248,8 @@ class FLF_System:
         intercept = magnifications[self.calib_manager.reference_plane]
 
         y_vec = np.arange(len(magnifications)) * plane_spacing_mm
-        slope_mm, _ = np.polyfit(y_vec, magnifications, 1)
+        idx = ~np.isnan(magnifications)
+        slope_mm, _ = np.polyfit(y_vec[idx], magnifications[idx], 1)
 
         if camera_number not in self.camera_magnification_information:
             self.camera_magnification_information[camera_number] = {}

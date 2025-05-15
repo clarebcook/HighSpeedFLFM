@@ -538,6 +538,15 @@ class ResultPlotter:
                 else:
                     plt.scatter([point[1]], [point[0]], color=color, s=20)
             plt.tight_layout()
+
+            # if we just want the plot from a single frame, return here
+            if len(frames) == 1:
+                if return_crops:
+                    crops = [int(i) for i in [xstart, xend, ystart, yend]]
+                    return fig, crops
+                else:
+                    return fig
+
             fig.canvas.draw()
             plot_array = np.asarray(fig.canvas.renderer._renderer)
 
