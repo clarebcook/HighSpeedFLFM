@@ -1,0 +1,23 @@
+name: hsflfm_cpu
+channels:
+  - conda-forge
+  - defaults
+  - pytorch
+dependencies:
+  - mamba
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cpuonly
+  - ipython
+  - scipy
+  - matplotlib
+  - opencv
+  - trimesh
+  - shapely
+  - plotly
+  - tqdm
+  - pandas
+  - xarray
+  - conda-forge::qtpy
+  - openpyxl
