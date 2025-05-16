@@ -18,11 +18,11 @@ import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
 
 # specify specimen name
-specimen_number = "20250226_OB_2"
+specimen_number = "20250429_OB_1"
 data_manager = MetadataManager(specimen_number=specimen_number)
 
 # specify if we're selecting alignment points or paint dots
-point_type = "alignment"
+point_type = "paint"
 type_list = ["alignment", "paint"]
 
 if point_type not in type_list:

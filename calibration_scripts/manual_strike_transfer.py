@@ -141,7 +141,7 @@ class FrameViewer(QtWidgets.QWidget):
 
     def get_filename(self):
         # very hard-coded, we'll adjust this
-        folder = "../ground_truth_tests_20250226"  # test_results_from_manual_strike_transfer_GUI"
+        folder = "../ground_truth_tests_20250429"  # test_results_from_manual_strike_transfer_GUI"
         if not os.path.exists(folder):
             os.mkdir(folder)
         spec_folder = folder + f"/{self.cur_specimen_number}"
@@ -781,7 +781,8 @@ if __name__ == "__main__":
         #    "../temporary_result_storage_5/20240503_OB_3/strike_13_results.json",
         #    "../temporary_result_storage_5/20240503_OB_3/strike_14_results.json",
         # ],
-        specimen_numbers=["20250226_OB_2"],  # , "20240503_OB_3"],
+        # specimen_numbers=["20250226_OB_2"],  # , "20240503_OB_3"],
+        specimen_numbers=["20250429_OB_1"],
         heights=heights,
     )
     viewer.show()
