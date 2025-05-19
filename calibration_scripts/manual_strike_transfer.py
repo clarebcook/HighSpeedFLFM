@@ -141,15 +141,13 @@ class FrameViewer(QtWidgets.QWidget):
 
     def get_filename(self):
         # very hard-coded, we'll adjust this
-        folder = (
-            "../temp_redone_results"  # test_results_from_manual_strike_transfer_GUI"
-        )
+        folder = "../ground_truth_tests_20250429"  # test_results_from_manual_strike_transfer_GUI"
         if not os.path.exists(folder):
             os.mkdir(folder)
         spec_folder = folder + f"/{self.cur_specimen_number}"
         if not os.path.exists(spec_folder):
             os.mkdir(spec_folder)
-        filename = spec_folder + f"/strike_{self.strike_number}.json"
+        filename = spec_folder + f"/strike_{int(self.strike_number)}.json"
         return filename
 
     def approve(self):
@@ -171,13 +169,17 @@ class FrameViewer(QtWidgets.QWidget):
             self.aligner.stored_alignment_matrices[self.strike_number] = (
                 self.strike_A_cam_ant
             )
+            # need to make sure the values aren't lists?
+            for key, item in self.match_points.items():
+                self.match_points[key] = np.asarray(item)
             self.aligner.stored_match_points[self.strike_number] = self.match_points
             self.aligner.stored_point_numbers[self.strike_number] = self.point_numbers
 
         filename = self.get_filename()
 
         save_dictionary(self.current_info, filename)
-        print("WARNING WARNING NOT SAVING")
+        print(f"PAY ATTENTION saving as {filename}")
+        # print("WARNING WARNING NOT SAVING")
 
         self.go_to_next_strike()
         self.update_frame()
@@ -250,7 +252,7 @@ class FrameViewer(QtWidgets.QWidget):
         else:
             start_strike = None
         self.current_info = self.aligner.prepare_strike_results(
-            self.strike_number, start_strike=start_strike
+            self.strike_number, start_strike=start_strike, show=True
         )
 
         # TODO: this is heavily copied from "prepare_strike",
@@ -373,7 +375,7 @@ class FrameViewer(QtWidgets.QWidget):
         elif self.mode == "add points":
             # we pretty much just stay at self.point_index = 0
             points = self.missing_points
-            if len(points) < 1:
+            if len(points) <= self.point_index:
                 self.mode = "view"
                 return
 
@@ -462,14 +464,21 @@ class FrameViewer(QtWidgets.QWidget):
         else:
             start_strike = None
         self.current_info = self.aligner.prepare_strike_results(
-            self.strike_number, start_strike=start_strike
+            self.strike_number, start_strike=start_strike, show=self.strike_number == 1
         )
 
         # TODO: get rid of this again
-        if self.strike_number <= 8 and self.strike_number > 1:
-            filename = f"../temp_redone_results/{self.cur_specimen_number}/strike_{self.strike_number}.json"
+        # if self.strike_number <= 8 and self.strike_number > 1:
+        #    filename = f"../temp_redone_results/{self.cur_specimen_number}/strike_{self.strike_number}.json"
+        #    self.current_info = load_dictionary(filename)
+        #    print("WARNING LOADING PAST INFORMATION")
+
+        filename = self.get_filename()
+        if os.path.exists(filename):
+            print("WARNING: LOADING PAST INFORMATION")
             self.current_info = load_dictionary(filename)
-            print("WARNING LOADING PAST INFORMATION")
+        else:
+            print(f"{filename} not existing yet")
 
         info = self.current_info
         # info["manually_transferred_points"] = []
@@ -539,6 +548,7 @@ class FrameViewer(QtWidgets.QWidget):
             frame_data.data,
             frame_data.shape[1],
             frame_data.shape[0],
+            frame_data.shape[1] * 3,
             QtGui.QImage.Format_RGB888,
         )
 
@@ -597,11 +607,13 @@ class FrameViewer(QtWidgets.QWidget):
         ## Step 2: ensure example image is up to date
         # for now feels easier to just make this a RGB image
         image = self.strike1_image[:, :, None].repeat(3, axis=-1)
+        image = (image - np.min(image)) / (np.max(image) - np.min(image)) * 255
         image = image.astype(np.uint8)
         img = QtGui.QImage(
             image,
             image.shape[1],
             image.shape[0],
+            image.shape[1] * 3,
             QtGui.QImage.Format_RGB888,
         )
         pixmap2 = QtGui.QPixmap.fromImage(img)
@@ -688,32 +700,19 @@ class FrameViewer(QtWidgets.QWidget):
         return
 
     def add_new_point(self, x_vol_pix, y_vol_pix):
-        # # this is currently only set up to work with three camreas
-        # # this will translate points back into space
-        # shift_map0 = self.grid_volume[0][self.current_frame]
-        # shift_map1 = self.grid_volume[1][self.current_frame]
-        # shift_map2 = self.grid_volume[2][self.current_frame]
-
-        # y_cam0_norm, x_cam0_norm = shift_map0[x_vol_pix, y_vol_pix]
-        # y_cam1_norm, x_cam1_norm = shift_map1[x_vol_pix, y_vol_pix]
-        # y_cam2_norm, x_cam2_norm = shift_map2[x_vol_pix, y_vol_pix]
-
-        # # convert to pixels
-        # x_cam0_pix = float((x_cam0_norm + 1) / 2 * self.image_shape[0])
-        # y_cam0_pix = float((y_cam0_norm + 1) / 2 * self.image_shape[1])
-        # x_cam1_pix = float((x_cam1_norm + 1) / 2 * self.image_shape[0])
-        # y_cam1_pix = float((y_cam1_norm + 1) / 2 * self.image_shape[1])
-        # x_cam2_pix = float((x_cam2_norm + 1) / 2 * self.image_shape[0])
-        # y_cam2_pix = float((y_cam2_norm + 1) / 2 * self.image_shape[1])
-        x_cam0_pix, y_cam0_pix = self._volume_pixel_to_image(x_vol_pix, y_vol_pix, 0)
-        x_cam1_pix, y_cam1_pix = self._volume_pixel_to_image(x_vol_pix, y_vol_pix, 1)
-        x_cam2_pix, y_cam2_pix = self._volume_pixel_to_image(x_vol_pix, y_vol_pix, 2)
+        pixels = np.zeros((len(self.system.calib_manager.image_numbers), 2))
+        for i, cam_num in enumerate(self.system.calib_manager.image_numbers):
+            x_cam_pix, y_cam_pix = self._volume_pixel_to_image(
+                x_vol_pix, y_vol_pix, cam_num
+            )
+            pixels[i] = [x_cam_pix, y_cam_pix]
 
         # TODO: massively clean this up
         if self.mode == "manual align":
             if self.point_number in self.manual_align_point_numbers:
                 print(
-                    f"this point number {self.point_number} is already present: caution"
+                    f"this point number {self.point_number} is already present: caution",
+                    self.manual_align_point_numbers,
                 )
                 return
 
@@ -727,13 +726,7 @@ class FrameViewer(QtWidgets.QWidget):
                 self.manual_align_point_numbers, insert_index, self.point_number
             )
 
-            for i, p in enumerate(
-                [
-                    [x_cam0_pix, y_cam0_pix],
-                    [x_cam1_pix, y_cam1_pix],
-                    [x_cam2_pix, y_cam2_pix],
-                ]
-            ):
+            for i, p in enumerate(pixels):
                 if len(self.manual_align_match_points[i]) == 0:
                     assert insert_index == 0
                     self.manual_align_match_points[i] = np.asarray([p])
@@ -760,20 +753,7 @@ class FrameViewer(QtWidgets.QWidget):
                 self.point_numbers, insert_index, self.point_number
             )
 
-            print(
-                len(self.point_numbers),
-                self.point_numbers,
-                insert_index,
-                self.point_number,
-            )
-
-            for i, p in enumerate(
-                [
-                    [x_cam0_pix, y_cam0_pix],
-                    [x_cam1_pix, y_cam1_pix],
-                    [x_cam2_pix, y_cam2_pix],
-                ]
-            ):
+            for i, p in enumerate(pixels):
                 if len(self.match_points[i]) == 0:
                     assert insert_index == 0
                     self.match_points[i] = np.asarray([p])
@@ -781,7 +761,6 @@ class FrameViewer(QtWidgets.QWidget):
                     self.match_points[i] = np.insert(
                         self.match_points[i], insert_index, p, axis=0
                     )
-            print(self.match_points[2], len(self.match_points[2]))
 
             self.point_numbers = self.point_numbers.astype(np.uint16)
             remove_idx = np.where(self.missing_points == self.point_number)[0][0]
@@ -792,8 +771,6 @@ class FrameViewer(QtWidgets.QWidget):
 
         print("missing points: ", self.missing_points)
         print()
-        # self.current_info["point_numbers"] = self.point_numbers
-        # self.current_info["manually_transferred_points"].append(int(self.point_number))
 
 
 if __name__ == "__main__":
@@ -804,7 +781,8 @@ if __name__ == "__main__":
         #    "../temporary_result_storage_5/20240503_OB_3/strike_13_results.json",
         #    "../temporary_result_storage_5/20240503_OB_3/strike_14_results.json",
         # ],
-        specimen_numbers=["20240507_OB_2"],  # , "20240503_OB_3"],
+        # specimen_numbers=["20250226_OB_2"],  # , "20240503_OB_3"],
+        specimen_numbers=["20250429_OB_1"],
         heights=heights,
     )
     viewer.show()

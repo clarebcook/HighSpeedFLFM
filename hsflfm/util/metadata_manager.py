@@ -19,7 +19,7 @@ class MetadataManager:
 
     @property
     def strike_numbers(self):
-        return self.specimen_data["Strike #"].values
+        return np.sort(self.specimen_data["Strike #"].values)
 
     @property
     def calibration_folder(self):
@@ -111,14 +111,14 @@ class MetadataManager:
         strike_data = self.get_strike_data(strike_number)
         key = "Mandible Order \n(Left, Right, Simultaneous)"
         return strike_data[key].values[0].strip()
-    
+
     # these will always be returned as L, R
     def mandible_start_frames(self, strike_number):
         strike_data = self.get_strike_data(strike_number)
-        key0 = 'Mandible 1 \nframe start / Strike Start'
-        key1 = 'Mandible 2 frame start'
+        key0 = "Mandible 1 \nframe start / Strike Start"
+        key1 = "Mandible 2 frame start"
 
-        f0 = strike_data[key0].values[0] 
+        f0 = strike_data[key0].values[0]
         f1 = strike_data[key1].values[0]
 
         # TODO: edit this once we know how to handle "S"
@@ -131,4 +131,3 @@ class MetadataManager:
             raise ValueError(f"{order} not an expected order")
 
         return frames
-

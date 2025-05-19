@@ -11,13 +11,14 @@ import cv2
 import sys
 import torch
 import torch.nn.functional as F
+import numpy as np
 
 import qtpy.QtWidgets as QtWidgets
 import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
 
 # specify specimen name
-specimen_number = "20240507_OB_2"
+specimen_number = "20250429_OB_1"
 data_manager = MetadataManager(specimen_number=specimen_number)
 
 # specify if we're selecting alignment points or paint dots
@@ -47,7 +48,7 @@ elif point_type == "paint":
     name = "match_points"
     point_types = None
 # adding demo right now to avoid overwriting past data
-save_name = save_folder + f"/{name}"  # _demo"
+save_name = save_folder + f"/{name}"  # + "_demo"
 
 # prepare the maps
 calibration_filename = data_manager.calibration_filename
@@ -113,7 +114,9 @@ elif point_type == "paint":
 
 heights = torch.linspace(-3, 3, 200, dtype=torch.float32)
 volume = torch.zeros((len(heights), images[0].shape[0], images[0].shape[1], 3))
-grids = torch.zeros((3, len(heights), images[0].shape[0], images[0].shape[1], 2))
+grids = torch.zeros(
+    (len(images), len(heights), images[0].shape[0], images[0].shape[1], 2)
+)
 for cam_num, image in images.items():
     image = torch.from_numpy(image[None, None]).to(torch.float32)
 
@@ -123,13 +126,19 @@ for cam_num, image in images.items():
     warp_volume = warp_volume.squeeze()
     grid = grid.squeeze()
 
-    volume[:, :, :, cam_num] = warp_volume
+    color_index = cam_num % 3
+    volume[:, :, :, color_index] += warp_volume
     grids[cam_num] = grid
 
 # contrast adjust ?
 volume = (volume - torch.min(volume)) / (torch.max(volume) - torch.min(volume)) * 255
 volume = volume.to(torch.uint8)
+
+# need to clean this up
+# I can't remember why I was starting as tensors and converting to numpy
 volume = volume.numpy()
+heights = heights.numpy()
+grids = grids.numpy()
 
 
 class FrameViewer(QtWidgets.QWidget):
@@ -191,6 +200,7 @@ class FrameViewer(QtWidgets.QWidget):
             frame_data.data,
             frame_data.shape[1],
             frame_data.shape[0],
+            frame_data.shape[1] * 3,
             QtGui.QImage.Format_RGB888,
         )
 
@@ -238,51 +248,18 @@ class FrameViewer(QtWidgets.QWidget):
         z_mm = self.heights[self.current_frame]
         print(f"Double-clicked at coordinates: ({x_vol_pix}, {y_vol_pix})")
 
-        # this is currently only set up to work with three camreas
-        # this will translate points back into space
-        shift_map0 = self.grid_volume[0][self.current_frame]
-        shift_map1 = self.grid_volume[1][self.current_frame]
-        shift_map2 = self.grid_volume[2][self.current_frame]
+        for cam_num, volume in enumerate(self.grid_volume):
+            shift_map = volume[self.current_frame]
+            # get the normalized x and y values
+            y_cam_norm, x_cam_norm = shift_map[x_vol_pix, y_vol_pix]
+            # convert to pixels
+            x_cam_pix = (x_cam_norm + 1) / 2 * image_shape[0]
+            y_cam_pix = (y_cam_norm + 1) / 2 * image_shape[1]
 
-        y_cam0_norm, x_cam0_norm = shift_map0[x_vol_pix, y_vol_pix]
-        y_cam1_norm, x_cam1_norm = shift_map1[x_vol_pix, y_vol_pix]
-        y_cam2_norm, x_cam2_norm = shift_map2[x_vol_pix, y_vol_pix]
-
-        # convert to pixels
-        x_cam0_pix = (x_cam0_norm + 1) / 2 * image_shape[0]
-        y_cam0_pix = (y_cam0_norm + 1) / 2 * image_shape[1]
-        x_cam1_pix = (x_cam1_norm + 1) / 2 * image_shape[0]
-        y_cam1_pix = (y_cam1_norm + 1) / 2 * image_shape[1]
-        x_cam2_pix = (x_cam2_norm + 1) / 2 * image_shape[0]
-        y_cam2_pix = (y_cam2_norm + 1) / 2 * image_shape[1]
-
-        self.match_points[0].append(
-            [
-                float(x_cam0_pix),
-                float(y_cam0_pix),
-                float(z_mm),
-                float(x_vol_pix),
-                float(y_vol_pix),
+            values = [
+                float(i) for i in [x_cam_pix, y_cam_pix, z_mm, x_vol_pix, y_vol_pix]
             ]
-        )
-        self.match_points[1].append(
-            [
-                float(x_cam1_pix),
-                float(y_cam1_pix),
-                float(z_mm),
-                float(x_vol_pix),
-                float(y_vol_pix),
-            ]
-        )
-        self.match_points[2].append(
-            [
-                float(x_cam2_pix),
-                float(y_cam2_pix),
-                float(z_mm),
-                float(x_vol_pix),
-                float(y_vol_pix),
-            ]
-        )
+            self.match_points[cam_num].append(values)
 
         save_dictionary(self.match_points, self.save_name)
         self.add_point_to_volume(self.match_points)

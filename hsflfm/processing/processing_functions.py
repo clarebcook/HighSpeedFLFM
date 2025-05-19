@@ -2,6 +2,8 @@ import xarray as xr
 import numpy as np
 import cv2
 
+from torch.optim import Adam
+
 import torch
 import torch.nn as nn
 from torch.nn.functional import conv1d
@@ -25,12 +27,10 @@ def world_frame_to_pixel(system, point, camera=2):
         point[1] * mag1 / (pixel_size_m * 1e3),
     )
 
-
     # TODO: this is not quite correct
     # we need to do this similar to how we produce the
     # inv inter camera maps
-    # so take a look at that and then fix this 
-
+    # so take a look at that and then fix this
 
     # then shift to the other camera if it's not the reference camera
     s0, s1 = system.get_pixel_shifts(camera, [pixels[0]], [pixels[1]])
@@ -46,12 +46,14 @@ def world_frame_to_pixel(system, point, camera=2):
 def enforce_self_consistency(match_points, system):
     # this could eventually be written to not necessarilyl
     # maintain the location of the point in the reference image
-    ref_camera = system.reference_camera 
+    ref_camera = system.reference_camera
 
     start_pixels = np.asarray(match_points[ref_camera])
     heights = get_point_locations(system, match_points)[:, 2]
     heights = np.repeat(heights[:, None], 2, 1)
-    vd0, vd1 = system.get_shift_slopes(ref_camera, start_pixels[:, 0], start_pixels[:, 1])
+    vd0, vd1 = system.get_shift_slopes(
+        ref_camera, start_pixels[:, 0], start_pixels[:, 1]
+    )
     ref_shifts = heights * np.concatenate((vd0[:, None], vd1[:, None]), axis=1)
     start_pixels = start_pixels + ref_shifts
 
@@ -63,8 +65,9 @@ def enforce_self_consistency(match_points, system):
         v0, v1 = system.get_shift_slopes(camera, pixels[:, 0], pixels[:, 1])
         shifts = heights * np.concatenate((v0[:, None], v1[:, None]), axis=1)
         pixels = pixels - shifts
-        adjusted_match_points[camera] = pixels 
+        adjusted_match_points[camera] = pixels
     return adjusted_match_points
+
 
 def get_point_flow_vector(video, point, flow_parameters, crop_size=(21, 21)):
     startx0 = int(point[0]) - int(crop_size[0] / 2)
@@ -246,34 +249,30 @@ class ParallelLinear(nn.Module):
         return super().cuda()
 
 
-# older functions
+# this is not an efficient approach
+# but is adequate and reliable for now
+# doing a weighted average of height estimates
+# from different camera pairs
+def get_point_locations(system, match_points, *args, **kwargs):
+    camera_numbers = np.asarray([i for i in match_points.keys()])
 
-camera_combos = {"0, 1": [0, 1], "0, 2": [0, 2], "1, 2": [1, 2]}
+    num_cameras = len(camera_numbers)
+    num_combos = int(((num_cameras**2 - num_cameras) / 2))
 
+    num_points = len(match_points[camera_numbers[0]])
+    estimates = np.zeros((num_combos * 2, num_points, 3))
+    weights = np.zeros(num_combos * 2)
 
-# this function will likely be re-done, and is currently hard-coded for a three-camera system
-# just using pairs of cameras to get the locations
-def get_point_locations(
-    system, match_points, remove_imprecise_vals=True, return_average=True
-):
-    first_key = [i for i in match_points.keys()][0]
-    num_points = len(match_points[first_key])
-    location_estimates_mm = xr.DataArray(
-        np.ones((num_points, 3, 4), dtype=np.float64) * np.nan,
-        dims=("point_number", "camera_combo", "spatial_dim"),
-        coords={
-            "point_number": np.arange(len(match_points[0])),
-            "camera_combo": ["0, 1", "0, 2", "1, 2"],
-            "spatial_dim": ["x", "y", "z_x", "z_y"],
-        },
-    )
-
-    for key, cameras in camera_combos.items():
-        cam_num0 = cameras[0]
-        cam_num1 = cameras[1]
+    count = 0
+    for i, j in np.ndindex((num_cameras, num_cameras)):
+        if i <= j:
+            continue
+        cam_num0 = camera_numbers[i]
+        cam_num1 = camera_numbers[j]
 
         points_cam0 = match_points[cam_num0]
         points_cam1 = match_points[cam_num1]
+
         for point_number, (point_cam0, point_cam1) in enumerate(
             zip(points_cam0, points_cam1)
         ):
@@ -293,6 +292,10 @@ def get_point_locations(
             # we can use either camera for this
             slope0_cam0, slope1_cam0 = system.get_shift_slopes(
                 cam_num0, [point_cam0[0]], [point_cam0[1]]
+            )
+
+            slope0_cam1, slope1_cam1 = system.get_shift_slopes(
+                cam_num1, [point_cam1[0]], [point_cam1[1]]
             )
             # the 0 indexing on slope0_cam0 and others is because get_shift_slopes returns a list
             x = point_cam0[0] - slope0_cam0[0] * plane_from_dx
@@ -322,56 +325,107 @@ def get_point_locations(
             x_mm = x / magnification_dim0 * pixel_size_m * 1e3
             y_mm = y / magnification_dim1 * pixel_size_m * 1e3
 
-            entry_dict = {
-                "x": x_mm,
-                "y": y_mm,
-                "z_x": plane_from_dx,
-                "z_y": plane_from_dy,
-            }
-            for dim, entry in entry_dict.items():
-                location_estimates_mm.loc[
-                    {
-                        "point_number": point_number,
-                        "camera_combo": key,
-                        "spatial_dim": dim,
-                    }
-                ] = entry
+            estimates[count * 2, point_number] = [x_mm, y_mm, plane_from_dx]
+            estimates[count * 2 + 1, point_number] = [x_mm, y_mm, plane_from_dy]
 
-    if remove_imprecise_vals:
-        location_estimates_mm.loc[
-            {"spatial_dim": ["z_x", "x"], "camera_combo": "0, 1"}
-        ] = np.nan
+            weights[count * 2] = abs(slope0_cam0 - slope0_cam1)
+            weights[count * 2 + 1] = abs(slope1_cam0 - slope1_cam1)
 
-    if not return_average:
-        return location_estimates_mm
+        count += 1
 
-    # then average to get the final values
-    locations_mm = location_estimates_mm.mean(dim=["camera_combo"])
-    # z has to be averaged further
-    # but this could all be much cleaner
-    z_locations_mm = (
-        np.mean(locations_mm.sel(spatial_dim=["z_x", "z_y"]).data, axis=1) * -1
+    # this is NOT the correct way to handle this multiplication
+    weights_ = np.repeat(weights[:, None], estimates.shape[1], axis=1)
+    weights_ = np.repeat(weights_[:, :, None], estimates.shape[2], axis=2)
+
+    weighted_estimates = estimates * weights_
+    locations = np.sum(weighted_estimates, axis=0) / np.sum(weights)
+    locations[:, 2] *= -1
+    return locations
+
+
+# 2025/02/19 this is experimental and not heavily in use yet
+# due to being very sensitive to noise
+def get_point_locations_iterative(
+    system,
+    match_points,
+    data_scale=1,
+    base_delta=0.1,
+    max_iterations=1000,
+    device="cpu",
+    lr=0.25,
+    include_report=False,
+):
+    # create the coefficients
+    num_cameras = len(match_points)
+    key0 = [i for i in match_points.keys()][0]
+    num_points = len(match_points[key0])
+    all_coeffs = torch.zeros(num_points, num_cameras * 2, 3)
+    values = torch.zeros(num_points, num_cameras * 2, 1)
+
+    for point_index in range(num_points):
+        for cam_num in range(num_cameras):
+            pixel_location = match_points[cam_num][point_index]
+            v0, v1 = system.get_shift_slopes(
+                cam_num, [pixel_location[0]], [pixel_location[1]]
+            )
+            s0, s1 = system.get_pixel_shifts(
+                cam_num, [pixel_location[0]], [pixel_location[1]]
+            )
+
+            all_coeffs[point_index, 2 * cam_num] = torch.asarray([1, 0, v0[0]])
+            all_coeffs[point_index, 2 * cam_num + 1] = torch.asarray([0, 1, v1[0]])
+            values[point_index, 2 * cam_num] = (
+                match_points[cam_num][point_index][0] + s0[0]
+            )
+            values[point_index, 2 * cam_num + 1] = (
+                match_points[cam_num][point_index][1] + s1[0]
+            )
+
+    iteration_losses = torch.zeros((num_points, max_iterations))
+    dev = torch.device(device)
+    model = ParallelLinear(all_coeffs, 1).to(dev)
+    huber_loss = ModifiedHuber(base_delta=base_delta * data_scale).to(dev)
+    optimizer = Adam(model.parameters(), lr=lr)
+
+    # intiailize
+    reference_camera = system.calib_manager.reference_camera
+    ref_index = torch.where(
+        torch.asarray([i for i in match_points.keys()]) == reference_camera
+    )[0][0]
+    model.displacements.data[:, 2] = 0
+    model.displacements.data[:, 0] = values[:, 2 * ref_index]
+    model.displacements.data[:, 1] = values[:, 2 * ref_index + 1]
+
+    for i in range(max_iterations):
+        optimizer.zero_grad()
+        predictions = model()
+        full_loss = huber_loss(predictions, values)
+        loss = torch.mean(full_loss)
+        loss.backward()
+        optimizer.step()
+        iteration_losses[:, i] = torch.mean(full_loss, axis=(1, 2))
+
+    locations = model.displacements.permute(0, 2, 1).cpu().detach() / data_scale
+
+    locations[:, :, 2] *= -1
+
+    pixel_size_m = system.calib_manager.pixel_size
+    magnification_dim0 = system.get_magnification_at_plane(
+        camera_number=system.reference_camera, plane_mm=0, dim=0
     )
-    x_locations_mm = locations_mm.sel(spatial_dim="x").data
-    y_locations_mm = locations_mm.sel(spatial_dim="y").data
-
-    camera_points = np.concatenate(
-        (x_locations_mm[:, None], y_locations_mm[:, None], z_locations_mm[:, None]),
-        axis=1,
+    magnification_dim1 = system.get_magnification_at_plane(
+        camera_number=system.reference_camera, plane_mm=0, dim=1
     )
+    locations[:, :, 0] = locations[:, :, 0] / magnification_dim0 * pixel_size_m * 1e3
+    locations[:, :, 1] = locations[:, :, 1] / magnification_dim1 * pixel_size_m * 1e3
 
-    return camera_points
+    locations = locations.squeeze().detach().cpu().numpy()
 
+    if not include_report:
+        return locations
 
-# default_flow_parameters = {
-#     "pyr_scale": 0.5,
-#     "levels": 3,
-#     "winsize": 11,
-#     "iterations": 5,
-#     "poly_n": 5,
-#     "poly_sigma": 0.8,
-#     "flags": 0,
-# }
+    return locations, iteration_losses, full_loss
+
 
 default_flow_parameters = {
     "pyr_scale": 0.9,

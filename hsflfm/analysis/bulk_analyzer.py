@@ -273,6 +273,14 @@ class BulkAnalyzer:
 
         self.all_results = loaded_results
 
+    # this should drop all points above the error threshold
+    # from the dictionary
+    def enforce_error_threshold(self, error_threshold=0.0015):
+        error_scores = self.error_scores
+        good_indices = torch.where(error_scores < error_threshold)[0]
+        for key, item in self.all_results.items():
+            self.all_results[key] = item[good_indices]
+
     # this is a little hand-wavy
     # but it's been a useful way to compare spatial trends
     # for strikes with different strength
