@@ -10,4 +10,4 @@ The end result of this process is a single file, ``calibration_information``, wh
 
 ## Specimen alignment
 
-run ``match_points_gui.py`` for "paint" and "alignment" points. 
+run ``match_points_gui.py`` for "paint" and "alignment" points. More information will be added on this later.  

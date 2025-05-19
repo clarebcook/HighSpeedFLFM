@@ -1,6 +1,6 @@
 # this is a utility class to easily manage metadata information about a given ant
 # this will prevent having to frequently interact directly with the metadata file
-from hsflfm.config import home_directory, metadata_filename
+from hsflfm.config import home_directory, metadata_filename, data_folder
 from hsflfm.util import load_split_video, load_image_set
 
 import numpy as np
@@ -24,12 +24,12 @@ class MetadataManager:
     @property
     def calibration_folder(self):
         folder = self.specimen_data["Calibration Folder"].values[0]
-        return home_directory + "/Videos/" + folder
+        return data_folder + '/' + folder
 
     @property
     def video_folder(self):
         folder = self.specimen_data["Video Folder"].values[0]
-        return home_directory + "/Videos/" + folder
+        return data_folder + '/' + folder
 
     @property
     def calibration_filename(self):
@@ -39,12 +39,12 @@ class MetadataManager:
     @property
     def alignment_folder(self):
         folder = self.specimen_data["Alignment Data Folder"].values[0]
-        return home_directory + "/Videos/" + folder
+        return data_folder + '/' + folder
 
     @property
     def alignment_image_folder(self):
         folder = self.specimen_data["Alignment Image Folder"].values[0]
-        return home_directory + "/Videos/" + folder
+        return data_folder + '/' + folder
 
     def get_strike_data(self, strike_number):
         return self.specimen_data.loc[self.specimen_data["Strike #"] == strike_number]

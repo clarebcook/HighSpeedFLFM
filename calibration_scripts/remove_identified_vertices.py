@@ -1,6 +1,6 @@
 from hsflfm.config import home_directory
 from hsflfm.calibration import CalibrationInfoManager
-from hsflfm.util import load_graph_images
+from hsflfm.util import load_graph_images, MetadataManager
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -15,11 +15,10 @@ current_camera_index = 0
 current_image_set = None
 current_image = None
 
-calibration_folder = home_directory + "/Videos/20240427/20240427_calibration"
-calibration_filename = (
-    "delete_calibration_information"  # calibration_folder + '/calibration_information'
-)
-
+specimen = "20250429_OB_1"
+mm = MetadataManager(specimen)
+calibration_filename = mm.calibration_filename
+calibration_folder = mm.calibration_folder
 calibration_manager = CalibrationInfoManager(calibration_filename)
 
 vertices_dict = calibration_manager.all_vertices
@@ -104,7 +103,7 @@ current_image = load_graph_images(
 )[0][current_camera]
 
 image = add_circles()
-im = ax.imshow(image) 
+im = ax.imshow(image)
 fig.suptitle(get_title())
 cid = fig.canvas.mpl_connect("button_press_event", remove_point)
 
