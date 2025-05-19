@@ -5,6 +5,8 @@ from hsflfm.util import load_image_set, MetadataManager
 from matplotlib import pyplot as plt
 from PIL import Image
 
+# select any specimen filmed under the calibration conditions
+# alternatively, the calibration folder and filename can be manually specified
 specimen = "20250226_OB_2"
 mm = MetadataManager(specimen)
 calibration_filename = mm.calibration_filename
