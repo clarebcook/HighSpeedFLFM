@@ -4,7 +4,7 @@
 
 # import
 from hsflfm.util import MetadataManager, load_dictionary, save_dictionary
-from hsflfm.calibration import FLF_System, generate_normalized_shift_maps
+from hsflfm.calibration import FLF_System, generate_ss_volume
 
 import os
 import cv2
@@ -18,7 +18,7 @@ import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
 
 # specify specimen name
-specimen_number = "20250429_OB_1"
+specimen_number = "20240506_OB_6"
 data_manager = MetadataManager(specimen_number=specimen_number)
 
 # specify if we're selecting alignment points or paint dots
@@ -50,60 +50,12 @@ elif point_type == "paint":
 # adding demo right now to avoid overwriting past data
 save_name = save_folder + f"/{name}"  # + "_demo"
 
-# prepare the maps
+# Load in Calibration settings and initialize info_manager and image_shape
 calibration_filename = data_manager.calibration_filename
 assert os.path.exists(calibration_filename)
 system = FLF_System(calibration_filename)
 info_manager = system.calib_manager
 image_shape = info_manager.image_shape
-
-warped_ss_maps = generate_normalized_shift_maps(
-    calibration_filename=calibration_filename,
-    image_shape=image_shape,
-    gen_downsample=1,
-    type="warped_shift_slope",
-)
-inv_inter_camera_maps = generate_normalized_shift_maps(
-    calibration_filename=calibration_filename,
-    image_shape=image_shape,
-    gen_downsample=1,
-    type="inv_inter_camera",
-)
-
-
-# prepare the shift and sum volume
-# this function is defined here for now, since it is not needed elsewhere
-def generate_warp_volume(image, heights, warped_shift_slopes, inv_inter_camera_map):
-    # prepare the base grid
-    y, x = torch.meshgrid(
-        torch.arange(0, image_shape[0], dtype=torch.float32) / image_shape[0],
-        torch.arange(0, image_shape[1], dtype=torch.float32) / image_shape[1],
-    )
-    base_grid = torch.stack([x, y], dim=-1)
-    base_grid = base_grid * 2 - 1
-
-    # make the grid stack with inter camera shifts
-    base_grid = base_grid + inv_inter_camera_map
-    base_grid = torch.stack([base_grid.squeeze(0)] * len(heights), dim=0)
-    # make the slope shifts for each height
-    heights = heights.view(-1, 1, 1, 1)
-    slope_shifts = (
-        torch.stack([warped_shift_slopes.squeeze(0)] * len(heights), dim=0) * heights
-    )
-
-    # add them
-    # recall that the shift slopes were warped, but never multiplied by -1 at this stage
-    # so we're doing that here
-    grid = base_grid + slope_shifts * -1
-
-    # then prepare the image
-    image_stack = torch.stack([image.squeeze(0)] * len(heights), dim=0)
-
-    warped_stack = F.grid_sample(
-        image_stack, grid, mode="bilinear", padding_mode="zeros", align_corners=False
-    )
-
-    return warped_stack, grid
 
 
 # load in the images
@@ -112,33 +64,20 @@ if point_type == "alignment":
 elif point_type == "paint":
     images = data_manager.get_start_images(strike_number=1)
 
+# Define height range
 heights = torch.linspace(-3, 3, 200, dtype=torch.float32)
-volume = torch.zeros((len(heights), images[0].shape[0], images[0].shape[1], 3))
-grids = torch.zeros(
-    (len(images), len(heights), images[0].shape[0], images[0].shape[1], 2)
+
+# Generate the volume using the simplified, modular approach
+volume, grids = generate_ss_volume(
+    calibration_filename=data_manager.calibration_filename,
+    images=images,
+    heights=heights,
 )
-for cam_num, image in images.items():
-    image = torch.from_numpy(image[None, None]).to(torch.float32)
 
-    ss_map = warped_ss_maps[[cam_num]].to(torch.float32)
-    ii_map = inv_inter_camera_maps[[cam_num]].to(torch.float32)
-    warp_volume, grid = generate_warp_volume(image, heights, ss_map, ii_map)
-    warp_volume = warp_volume.squeeze()
-    grid = grid.squeeze()
-
-    color_index = cam_num % 3
-    volume[:, :, :, color_index] += warp_volume
-    grids[cam_num] = grid
-
-# contrast adjust ?
+# Normalize and convert to uint8(similar to manual_strike_transfer)
 volume = (volume - torch.min(volume)) / (torch.max(volume) - torch.min(volume)) * 255
 volume = volume.to(torch.uint8)
-
-# need to clean this up
-# I can't remember why I was starting as tensors and converting to numpy
 volume = volume.numpy()
-heights = heights.numpy()
-grids = grids.numpy()
 
 
 class FrameViewer(QtWidgets.QWidget):
@@ -194,6 +133,22 @@ class FrameViewer(QtWidgets.QWidget):
 
         self.update_frame()
 
+
+    ## From manual_strike_transfer. Overlaying circles instead of inscribing on image   
+    def image_to_volume_pixel(self, point, camera_number, height):
+        x_pix, y_pix = point[0], point[1]
+        ss = self.system.get_shift_slopes(camera_number, [x_pix], [y_pix])
+        ii = self.system.get_pixel_shifts(camera_number, [x_pix], [y_pix])
+
+        x_pix += float(height) * ss[0][0]
+        y_pix += float(height) * ss[1][0]
+        ii = self.system.get_pixel_shifts(camera_number, [x_pix], [y_pix])
+        x_pix += ii[0][0]
+        y_pix += ii[1][0]
+
+        return x_pix, y_pix
+
+
     def update_frame(self):
         frame_data = self.volume[self.current_frame]
         frame_image = QtGui.QImage(
@@ -207,6 +162,21 @@ class FrameViewer(QtWidgets.QWidget):
         pixmap = QtGui.QPixmap.fromImage(frame_image)
         self.scene.clear()
         self.scene.addPixmap(pixmap)
+        ## Draw ellipses on top of the image for each point
+
+        # get the height value of the current frame
+        z_mm = self.heights[self.current_frame]
+
+        # check if match_points is not empty
+        if self.match_points:
+            # get the first camera number from match_points(to visualize points for one camera view)
+            first_cam_num = list(self.match_points.keys())[0]
+            # Iterate through all the saved match points associated with that canera
+            for point in self.match_points[first_cam_num]:
+                # Convert image space pixel coordinates to volume-space pixel coordinates at current height
+                x_pix, y_pix = self.image_to_volume_pixel(point, first_cam_num, z_mm)
+                # Draw a circle on top of the current image at collected coords
+                self.scene.addEllipse(y_pix, x_pix, 2.0, 2.0, QtGui.QPen(Qt.red))
 
         self.height_label.setText(f"height: {self.heights[self.current_frame]} mm")
 
@@ -218,26 +188,8 @@ class FrameViewer(QtWidgets.QWidget):
         self.update_frame()
 
     def add_point_to_volume(self, match_points):
-        # now we want to see where these points would appear throughout the volume...
-        # I think we can just do a slope thing ?
-        for key, point_sets in match_points.items():
-            for points in point_sets:
-                x_cam_pix = points[0]
-                y_cam_pix = points[1]
-                z_mm = points[2]
-                x_vol_pix = points[3]
-                y_vol_pix = points[4]
-                ss = system.get_shift_slopes(key, [x_cam_pix], [y_cam_pix])
-
-                for frame, height in zip(self.volume, self.heights):
-                    locx = int(x_vol_pix + (height - z_mm) * ss[0])
-                    locy = int(y_vol_pix + (height - z_mm) * ss[1])
-                    color = [0, 0, 0]
-                    color[key] = 255
-                    cv2.circle(frame, (locy, locx), radius=1, thickness=1, color=color)
-            # can remove this to show point selected in all three images
-            break
-
+        self.match_points = match_points  # store but don't mutate volume
+        
     def on_double_click(self, event):
         pos = self.graphics_view.mapToScene(event.pos())
 
@@ -253,8 +205,8 @@ class FrameViewer(QtWidgets.QWidget):
             # get the normalized x and y values
             y_cam_norm, x_cam_norm = shift_map[x_vol_pix, y_vol_pix]
             # convert to pixels
-            x_cam_pix = (x_cam_norm + 1) / 2 * image_shape[0]
-            y_cam_pix = (y_cam_norm + 1) / 2 * image_shape[1]
+            x_cam_pix = (x_cam_norm + 1) / 2 * image_shape[0] # org 2
+            y_cam_pix = (y_cam_norm + 1) / 2 * image_shape[1] # org 2
 
             values = [
                 float(i) for i in [x_cam_pix, y_cam_pix, z_mm, x_vol_pix, y_vol_pix]
@@ -262,7 +214,7 @@ class FrameViewer(QtWidgets.QWidget):
             self.match_points[cam_num].append(values)
 
         save_dictionary(self.match_points, self.save_name)
-        self.add_point_to_volume(self.match_points)
+        #self.add_point_to_volume(self.match_points)
 
         self.point_number = self.point_number + 1
         if self.point_types is not None:
