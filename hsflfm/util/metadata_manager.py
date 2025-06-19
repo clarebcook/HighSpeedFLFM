@@ -48,9 +48,7 @@ class MetadataManager:
     @property
     def alignment_image_folder(self):
         folder = self.specimen_data["Alignment Image Folder"].values[0]
-        print("DEBUG: folder type =", type(folder), "value =", folder)
         folder = str(folder)
-        print("DEBUG: folder type =", type(folder), "value =", folder)
         return data_folder + '/' + folder
 
     def get_strike_data(self, strike_number):
