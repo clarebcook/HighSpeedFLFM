@@ -1,7 +1,7 @@
 from hsflfm.config import home_directory
 from hsflfm.calibration import CalibrationInfoManager
 from hsflfm.util import load_graph_images, MetadataManager
-from calibration_scripts.remove_vertices_functions import (
+from hsflfm.calibration.vertices_organizing_functions import (
     detect_all_irregular_points
 )
 
@@ -147,5 +147,3 @@ fig.suptitle(get_title())
 cid = fig.canvas.mpl_connect("button_press_event", remove_point)
 
 plt.show()
-
-
