@@ -1,10 +1,8 @@
 from hsflfm.config import home_directory
 from hsflfm.calibration import CalibrationInfoManager
 from hsflfm.util import load_graph_images, MetadataManager
-from hsflfm.calibration.vertices_organizing_functions import (
-    organize_by_axis, ##My Import
-    get_average_spacing,
-    find_irregular_points
+from calibration_scripts.remove_vertices_functions import (
+    detect_all_irregular_points
 )
 
 import numpy as np
@@ -44,13 +42,13 @@ def get_title():
 def add_circles(irregular_points=None):
     image = current_image.copy()
 
-    if len(image.shape) == 2 or image.shape[2] == 1:
-        image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    #if len(image.shape) == 2: # or image.shape[2] == 1:
+    image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
 
     points = vertices_dict[current_plane][current_camera]
 
-    regular_color = (128, 0, 0)       # Muted color: blue
-    irregular_color = (0, 0, 255)     # Bright color: red
+    regular_color = (0, 0, 128)       # Muted color: blue
+    irregular_color = (240, 0, 0)     # Bright color: red
     radius = 3
     thickness = 1
 
@@ -109,12 +107,14 @@ def remove_point(event):
         vertices = np.delete(vertices, closest_index, axis=0)
         vertices_dict[current_plane][current_camera] = vertices.tolist()
 
+
+    # Gathers the list of irregular points for the currently displayed image formed by plane & camera index
     current_irregulars = all_irregulars.get((current_plane, current_camera), [])
 
-    # Convert images so rgb codes work
+    # Draws circle on a copy of the current image called new_image
     new_image = add_circles(irregular_points=current_irregulars)
-    new_image_rgb = cv2.cvtColor(new_image, cv2.COLOR_BGR2RGB)
-    im.set_data(new_image_rgb)
+    # Updates image display with new_image, changing the display without creating a new figure
+    im.set_data(new_image)
 
     fig.suptitle(get_title())
     fig.canvas.draw()
@@ -134,48 +134,15 @@ current_image = load_graph_images(
 manager = CalibrationInfoManager(calibration_filename)
 expected_spacing = manager.expected_line_spacing
 
+# Function loops through vertices dictionary and collect an array of irregular points
+all_irregulars = detect_all_irregular_points(vertices_dict, expected_spacing=expected_spacing)
 
-# Initialize Irregulars Dictionary
-all_irregulars = {}
-
-# Loop through vertices dictionary and collect an array of irregular points
-for plane_idx in vertices_dict:
-    for view_idx in vertices_dict[plane_idx]:
-        raw_points = vertices_dict[plane_idx][view_idx]
-
-        # STEP 2: Filter only valid [x, y] points
-        valid_points = [
-            p for p in raw_points
-            if isinstance(p, (list, tuple, np.ndarray)) and len(p) == 2 and all(isinstance(coord, (int, float)) for coord in p)
-        ]
-
-        verts = np.array(valid_points, dtype=np.float64)
-
-
-        # Compute average spacing
-        h_spacing, v_spacing = get_average_spacing(verts, expected_spacing = expected_spacing) # expected spacing from run_calibration
-
-        # Organize rows and columns
-        rows = organize_by_axis(verts, axis=1, expected_spacing=v_spacing) # Group points with similar y vals
-        cols = organize_by_axis(verts, axis=0, expected_spacing=h_spacing) # Group points with similar x vals
-
-        # Detect irregular points
-        row_irregulars = find_irregular_points(rows, axis=0, spacing=h_spacing) 
-        col_irregulars = find_irregular_points(cols, axis=1, spacing=v_spacing)
-
-        # Collect points that are irregular in either axes
-        final_irregulars = list(set(row_irregulars) | set(col_irregulars))
-
-        if final_irregulars:  
-            all_irregulars[(plane_idx, view_idx)] = final_irregulars
-
-#Verification code(delete)
+# Prints detected number of irregular points
 print(f"Irregular set contains {len(all_irregulars)} points.")
 
-
+# Draw circles and display image(initialize GUI with first image)
 image = add_circles(irregular_points=all_irregulars.get((current_plane, current_camera), []))
-image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-im = ax.imshow(image_rgb)
+im = ax.imshow(image)
 fig.suptitle(get_title())
 cid = fig.canvas.mpl_connect("button_press_event", remove_point)
 
