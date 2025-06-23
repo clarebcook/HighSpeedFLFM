@@ -96,7 +96,7 @@ class FrameViewer(QtWidgets.QWidget):
         camera_numbers = info_manager.image_numbers
         if os.path.exists(save_name):
             self.match_points = load_dictionary(save_name)
-            self.add_point_to_volume(self.match_points)
+            #self.add_point_to_volume(self.match_points)
         else:
             self.match_points = {}
             for num in camera_numbers:
@@ -134,7 +134,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.update_frame()
 
 
-    ## From manual_strike_transfer. Overlaying circles instead of inscribing on image   
+    # Overlaying circles on image   
     def image_to_volume_pixel(self, point, camera_number, height):
         x_pix, y_pix = point[0], point[1]
         ss = self.system.get_shift_slopes(camera_number, [x_pix], [y_pix])
@@ -170,7 +170,7 @@ class FrameViewer(QtWidgets.QWidget):
         # check if match_points is not empty
         if self.match_points:
             # get the first camera number from match_points(to visualize points for one camera view)
-            first_cam_num = list(self.match_points.keys())[0]
+            first_cam_num = system.reference_camera
             # Iterate through all the saved match points associated with that canera
             for point in self.match_points[first_cam_num]:
                 # Convert image space pixel coordinates to volume-space pixel coordinates at current height
@@ -187,8 +187,6 @@ class FrameViewer(QtWidgets.QWidget):
         self.current_frame = value
         self.update_frame()
 
-    def add_point_to_volume(self, match_points):
-        self.match_points = match_points  # store but don't mutate volume
         
     def on_double_click(self, event):
         pos = self.graphics_view.mapToScene(event.pos())
@@ -214,7 +212,6 @@ class FrameViewer(QtWidgets.QWidget):
             self.match_points[cam_num].append(values)
 
         save_dictionary(self.match_points, self.save_name)
-        #self.add_point_to_volume(self.match_points)
 
         self.point_number = self.point_number + 1
         if self.point_types is not None:
