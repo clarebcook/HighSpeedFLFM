@@ -203,8 +203,8 @@ class FrameViewer(QtWidgets.QWidget):
             # get the normalized x and y values
             y_cam_norm, x_cam_norm = shift_map[x_vol_pix, y_vol_pix]
             # convert to pixels
-            x_cam_pix = (x_cam_norm + 1) / 2 * image_shape[0] # org 2
-            y_cam_pix = (y_cam_norm + 1) / 2 * image_shape[1] # org 2
+            x_cam_pix = (x_cam_norm + 1) / 2 * image_shape[0] 
+            y_cam_pix = (y_cam_norm + 1) / 2 * image_shape[1]
 
             values = [
                 float(i) for i in [x_cam_pix, y_cam_pix, z_mm, x_vol_pix, y_vol_pix]
