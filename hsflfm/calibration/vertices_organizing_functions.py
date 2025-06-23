@@ -420,4 +420,48 @@ def find_irregular_points(sets, axis, spacing, max_multiple=6, gap_tolerance=0.1
             else:
                 i += 1
 
+<<<<<<< HEAD
     return irregular_points #returns list of irregular points(not dict) formatted as tuples
+=======
+    return irregular_points #returns list of irregular points(not dict) formatted as tuples
+
+
+## Function detects irregular points in a dictionary of vertices for each plane/view.
+#   vertices_dict: Dictionary of calibration vertices organized by [plane][view].
+#   expected_spacing: Expected horizontal and vertical spacing.
+#   max_mutiple: How many avg multiples of spacing to allow in case of points being skipped
+#   gap_tolerance: Tolerance for how close a gap is to a multiple
+#   decimals: Rounding for tuple
+def detect_all_irregular_points(vertices_dict, expected_spacing, max_multiple=6, gap_tolerance=0.15, decimals=4):
+    
+    all_irregulars = {}
+
+    for plane_num in vertices_dict:
+        for view_idx in vertices_dict[plane_num]:
+            raw_points = vertices_dict[plane_num][view_idx]
+
+            # STEP 1: Filter valid points
+            valid_points = [
+                p for p in raw_points
+                if isinstance(p, (list, tuple, np.ndarray)) and len(p) == 2 and all(isinstance(coord, (int, float)) for coord in p)
+            ]
+            verts = np.array(valid_points, dtype=np.float64)
+
+            # STEP 2: Compute spacing
+            h_spacing, v_spacing = get_average_spacing(verts, expected_spacing=expected_spacing)
+
+            # STEP 3: Organize points
+            rows = organize_by_axis(verts, axis=1, expected_spacing=v_spacing)
+            cols = organize_by_axis(verts, axis=0, expected_spacing=h_spacing)
+
+            # STEP 4: Find irregulars
+            row_irregulars = find_irregular_points(rows, axis=0, spacing=h_spacing, max_multiple=max_multiple, gap_tolerance=gap_tolerance, decimals=decimals)
+            col_irregulars = find_irregular_points(cols, axis=1, spacing=v_spacing, max_multiple=max_multiple, gap_tolerance=gap_tolerance, decimals=decimals)
+
+            final_irregulars = list(set(row_irregulars) | set(col_irregulars))
+
+            if final_irregulars:
+                all_irregulars[(plane_num, view_idx)] = final_irregulars
+
+    return all_irregulars
+>>>>>>> origin/main

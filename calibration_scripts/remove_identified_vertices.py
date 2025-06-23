@@ -2,9 +2,13 @@ from hsflfm.config import home_directory
 from hsflfm.calibration import CalibrationInfoManager
 from hsflfm.util import load_graph_images, MetadataManager
 from hsflfm.calibration.vertices_organizing_functions import (
+<<<<<<< HEAD
     organize_by_axis, ##My Import
     get_average_spacing,
     find_irregular_points
+=======
+    detect_all_irregular_points
+>>>>>>> origin/main
 )
 
 import numpy as np
@@ -44,6 +48,7 @@ def get_title():
 def add_circles(irregular_points=None):
     image = current_image.copy()
 
+<<<<<<< HEAD
     if len(image.shape) == 2 or image.shape[2] == 1:
         image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 
@@ -51,6 +56,15 @@ def add_circles(irregular_points=None):
 
     regular_color = (128, 0, 0)       # Muted color: blue
     irregular_color = (0, 0, 255)     # Bright color: red
+=======
+    if len(image.shape) == 2: # or image.shape[2] == 1:
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+
+    points = vertices_dict[current_plane][current_camera]
+
+    regular_color = (0, 0, 128)       # Muted color: blue
+    irregular_color = (240, 0, 0)     # Bright color: red
+>>>>>>> origin/main
     radius = 3
     thickness = 1
 
@@ -109,12 +123,23 @@ def remove_point(event):
         vertices = np.delete(vertices, closest_index, axis=0)
         vertices_dict[current_plane][current_camera] = vertices.tolist()
 
+<<<<<<< HEAD
     current_irregulars = all_irregulars.get((current_plane, current_camera), [])
 
     # Convert images so rgb codes work
     new_image = add_circles(irregular_points=current_irregulars)
     new_image_rgb = cv2.cvtColor(new_image, cv2.COLOR_BGR2RGB)
     im.set_data(new_image_rgb)
+=======
+
+    # Gathers the list of irregular points for the currently displayed image formed by plane & camera index
+    current_irregulars = all_irregulars.get((current_plane, current_camera), [])
+
+    # Draws circle on a copy of the current image called new_image
+    new_image = add_circles(irregular_points=current_irregulars)
+    # Updates image display with new_image, changing the display without creating a new figure
+    im.set_data(new_image)
+>>>>>>> origin/main
 
     fig.suptitle(get_title())
     fig.canvas.draw()
@@ -134,6 +159,7 @@ current_image = load_graph_images(
 manager = CalibrationInfoManager(calibration_filename)
 expected_spacing = manager.expected_line_spacing
 
+<<<<<<< HEAD
 
 # Initialize Irregulars Dictionary
 all_irregulars = {}
@@ -176,6 +202,17 @@ print(f"Irregular set contains {len(all_irregulars)} points.")
 image = add_circles(irregular_points=all_irregulars.get((current_plane, current_camera), []))
 image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 im = ax.imshow(image_rgb)
+=======
+# Function loops through vertices dictionary and collect an array of irregular points
+all_irregulars = detect_all_irregular_points(vertices_dict, expected_spacing=expected_spacing)
+
+# Prints detected number of irregular points
+print(f"Irregular set contains {len(all_irregulars)} points.")
+
+# Draw circles and display image(initialize GUI with first image)
+image = add_circles(irregular_points=all_irregulars.get((current_plane, current_camera), []))
+im = ax.imshow(image)
+>>>>>>> origin/main
 fig.suptitle(get_title())
 cid = fig.canvas.mpl_connect("button_press_event", remove_point)
 
