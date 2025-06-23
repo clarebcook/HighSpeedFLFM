@@ -42,8 +42,8 @@ def get_title():
 def add_circles(irregular_points=None):
     image = current_image.copy()
 
-    #if len(image.shape) == 2: # or image.shape[2] == 1:
-    image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    if len(image.shape) == 2: # or image.shape[2] == 1:
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
 
     points = vertices_dict[current_plane][current_camera]
 
