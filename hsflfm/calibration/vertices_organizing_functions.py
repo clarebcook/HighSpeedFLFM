@@ -420,9 +420,6 @@ def find_irregular_points(sets, axis, spacing, max_multiple=6, gap_tolerance=0.1
             else:
                 i += 1
 
-<<<<<<< HEAD
-    return irregular_points #returns list of irregular points(not dict) formatted as tuples
-=======
     return irregular_points #returns list of irregular points(not dict) formatted as tuples
 
 
@@ -464,4 +461,3 @@ def detect_all_irregular_points(vertices_dict, expected_spacing, max_multiple=6,
                 all_irregulars[(plane_num, view_idx)] = final_irregulars
 
     return all_irregulars
->>>>>>> origin/main
