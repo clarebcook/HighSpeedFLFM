@@ -147,3 +147,5 @@ fig.suptitle(get_title())
 cid = fig.canvas.mpl_connect("button_press_event", remove_point)
 
 plt.show()
+
+

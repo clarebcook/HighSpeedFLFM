@@ -39,6 +39,8 @@ class FrameViewer(QtWidgets.QWidget):
         self,
         specimen_numbers,
         heights,
+        save_folder,
+        demo_mode=False
     ):
         super().__init__()
         self.specimen_numbers = specimen_numbers
@@ -47,6 +49,9 @@ class FrameViewer(QtWidgets.QWidget):
 
         self.heights = heights
         self.current_frame = 0
+
+        self.basesavefolder = save_folder 
+        self.demo_mode = demo_mode
 
         self.prepare_specimen()
         self.initUI()
@@ -62,6 +67,16 @@ class FrameViewer(QtWidgets.QWidget):
         # set the instruction label
         self.instruction_label = QtWidgets.QLabel()
         layout.addWidget(self.instruction_label, 0, 1)
+
+        if self.demo_mode:
+            demo_banner = QtWidgets.QLabel("DEMO MODE: No data will be saved")
+            demo_banner.setStyleSheet("color: orange; font-weight: bold; font-size: 14px")
+            layout.addWidget(demo_banner, 0, 1)
+        else:
+            demo_banner = QtWidgets.QLabel("Save Folder: " + self.basesavefolder)
+            demo_banner.setStyleSheet("color: orange; font-weight: bold; font-size: 12px")
+            layout.addWidget(demo_banner, 0, 1)
+
 
         # prepare the interactive view
         self.graphics_view = QtWidgets.QGraphicsView()
@@ -117,21 +132,35 @@ class FrameViewer(QtWidgets.QWidget):
         layout.addWidget(self.graphics_view_static, 1, 0)
 
         self.skip_point_button = QtWidgets.QPushButton(text="Skip Point")
-        layout.addWidget(self.skip_point_button, 2, 0)
+        layout.addWidget(self.skip_point_button, 2, 0) 
+
         self.full_view_button = QtWidgets.QPushButton(text="View All")
         layout.addWidget(self.full_view_button, 3, 0)
-        self.add_missing_points_button = QtWidgets.QPushButton(
-            text="Add Missing Points"
-        )
+
+        self.add_missing_points_button = QtWidgets.QPushButton(text="Add Missing Points")
+        
         layout.addWidget(self.add_missing_points_button, 4, 0)
         self.remove_points_button = QtWidgets.QPushButton(text="Remove Points")
+
         layout.addWidget(self.remove_points_button, 5, 0)
         self.full_view_button.clicked.connect(self.view_all_points)
+
         self.skip_point_button.clicked.connect(self.skip_point)
         self.add_missing_points_button.clicked.connect(self.add_missing_points)
         self.remove_points_button.clicked.connect(self.remove_points)
 
         self.setLayout(layout)
+
+        self.buttons = {
+            "skip_point_button": self.skip_point_button,
+            "approve_button": self.approve_button,
+            "remove_points_button": self.remove_points_button,
+            "manual_button": self.manual_button,
+            "manual_button2": self.manual_button2,
+            "rerun_button": self.rerun_button,
+            "add_missing_points_button": self.add_missing_points_button,
+            "full_view_button": self.full_view_button,
+        }
 
         self.update_frame()
 
@@ -139,9 +168,10 @@ class FrameViewer(QtWidgets.QWidget):
         self.mode = "view all"
         self.update_frame()
 
+
     def get_filename(self):
         # very hard-coded, we'll adjust this
-        folder = "../ground_truth_tests_20250429"  # test_results_from_manual_strike_transfer_GUI"
+        folder = self.basesavefolder  # test_results_from_manual_strike_transfer_GUI"
         if not os.path.exists(folder):
             os.mkdir(folder)
         spec_folder = folder + f"/{self.cur_specimen_number}"
@@ -177,9 +207,15 @@ class FrameViewer(QtWidgets.QWidget):
 
         filename = self.get_filename()
 
-        save_dictionary(self.current_info, filename)
-        print(f"PAY ATTENTION saving as {filename}")
-        # print("WARNING WARNING NOT SAVING")
+        if not self.demo_mode:
+            save_dictionary(self.current_info, filename)
+            print(f"Saved alignment results to {filename}")
+        else:
+            print("DEMO MODE: Skipped saving results")
+
+        # save_dictionary(self.current_info, filename)
+        # print(f"PAY ATTENTION saving as {filename}")
+        # # print("WARNING WARNING NOT SAVING")
 
         self.go_to_next_strike()
         self.update_frame()
@@ -402,7 +438,10 @@ class FrameViewer(QtWidgets.QWidget):
         if self.cur_specimen_index >= len(self.specimen_numbers):
             # self.instruction_label.setText("All done!!!")
             # possibly do something else, like close the GUI
+            print("All specimens processed. Closing GUI.")
+            self.close()  # <-- this closes the GUI window
             return
+        
         self.prepare_specimen()
 
     # we'll modify this...
@@ -646,6 +685,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.detail_label.setText(
             f"{self.cur_specimen_number}, analyzing strike {self.strike_number}, mode {self.mode}"
         )
+        self.update_button_states()
 
     def on_slider_change(self, value):
         self.current_frame = value
@@ -772,6 +812,71 @@ class FrameViewer(QtWidgets.QWidget):
         print("missing points: ", self.missing_points)
         print()
 
+    def update_button_states(self):
+        button_state_config = {
+            "add points": {
+                "skip_point_button": True,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": False,
+                "rerun_button": False,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+            "view all": {
+                "skip_point_button": False,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": False,
+                "rerun_button": False,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+            "remove points": {
+                "skip_point_button": False,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": False,
+                "rerun_button": False,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+            "manual align": {
+                "skip_point_button": True,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": True,
+                "rerun_button": True,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+            "default": {
+                "skip_point_button": False,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": True,
+                "rerun_button": False,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+        }
+        # Default state
+        states = button_state_config.get(self.mode, button_state_config["default"])
+        # Apply states 
+        # Shouldn't throw an error when new buttons are added
+        for button_name, enabled in states.items():
+            button = self.buttons.get(button_name)
+            if button:
+                button.setEnabled(enabled)
+
+
+
+## Change Settings Here
 
 if __name__ == "__main__":
     heights = torch.linspace(-3, 3, 200, dtype=torch.float32)
@@ -782,8 +887,11 @@ if __name__ == "__main__":
         #    "../temporary_result_storage_5/20240503_OB_3/strike_14_results.json",
         # ],
         # specimen_numbers=["20250226_OB_2"],  # , "20240503_OB_3"],
-        specimen_numbers=["20250429_OB_1"],
+        # specimen_numbers=["20250429_OB_1"],
+        specimen_numbers=["20240506_OB_6"],
         heights=heights,
+        save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs", 
+        demo_mode=False 
     )
     viewer.show()
     sys.exit(app.exec_())
