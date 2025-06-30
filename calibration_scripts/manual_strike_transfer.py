@@ -100,54 +100,55 @@ class FrameViewer(QtWidgets.QWidget):
         # and buttons to approve, change transform, remove points, or re-run
         self.approve_button = QtWidgets.QPushButton(text="Approve")
         self.manual_button = QtWidgets.QPushButton(
-            text="start new manual point transfer"
+            text="Start new manual point transfer"
         )
         self.manual_button2 = QtWidgets.QPushButton(
-            text="continue manual point transfer"
+            text="Continue manual point transfer"
         )
         self.rerun_button = QtWidgets.QPushButton(text="Re-run alignment")
         # self.remove_points_button = QtWidgets.QPushButton(text="Remove points")
-        for i, button in enumerate(
-            [
-                self.approve_button,
-                self.manual_button,
-                self.manual_button2,
-                self.rerun_button,
-                # self.remove_points_button,
-            ]
-        ):
-            layout.addWidget(button, 4 + i, 1)
-        self.approve_button.clicked.connect(self.approve)
-        self.rerun_button.clicked.connect(self.rerun)
-        self.manual_button.clicked.connect(self.prep_for_manual_alignment)
-        self.manual_button2.clicked.connect(self.continue_manual_transfer)
 
+        # GUI Functionality
         self.detail_label = QtWidgets.QLabel()
-        layout.addWidget(self.detail_label, 0, 0)
         self.graphics_view_static = QtWidgets.QGraphicsView()
         self.scene_static = QtWidgets.QGraphicsScene()
         self.graphics_view_static.setScene(self.scene_static)
         self.graphics_view_static.mouseClickEvent = self.on_double_click
 
-        layout.addWidget(self.graphics_view_static, 1, 0)
-
         self.skip_point_button = QtWidgets.QPushButton(text="Skip Point")
-        layout.addWidget(self.skip_point_button, 2, 0) 
-
         self.full_view_button = QtWidgets.QPushButton(text="View All")
-        layout.addWidget(self.full_view_button, 3, 0)
-
         self.add_missing_points_button = QtWidgets.QPushButton(text="Add Missing Points")
-        
-        layout.addWidget(self.add_missing_points_button, 4, 0)
         self.remove_points_button = QtWidgets.QPushButton(text="Remove Points")
 
-        layout.addWidget(self.remove_points_button, 5, 0)
+        # Connect Buttons
+        self.approve_button.clicked.connect(self.approve)
+        self.rerun_button.clicked.connect(self.rerun)
+        self.manual_button.clicked.connect(self.prep_for_manual_alignment)
+        self.manual_button2.clicked.connect(self.continue_manual_transfer)
         self.full_view_button.clicked.connect(self.view_all_points)
-
         self.skip_point_button.clicked.connect(self.skip_point)
         self.add_missing_points_button.clicked.connect(self.add_missing_points)
         self.remove_points_button.clicked.connect(self.remove_points)
+
+        # Button Formatting
+        self.full_view_button.setStyleSheet("background-color: #6A5ACD; font-weight: bold;")
+        self.add_missing_points_button.setStyleSheet("background-color: #6A5ACD; font-weight: bold;")
+        self.remove_points_button.setStyleSheet("background-color: #6A5ACD; font-weight: bold;")
+        self.manual_button.setStyleSheet("background-color: #6A5ACD; font-weight: bold;")
+        self.approve_button.setStyleSheet("background-color: #2E8B57; color: white; font-weight: bold;")
+
+        # GUI Layout
+        layout.addWidget(self.detail_label, 0, 0)
+        layout.addWidget(self.graphics_view_static, 1, 0)
+        layout.addWidget(self.full_view_button, 2, 0)
+        layout.addWidget(self.add_missing_points_button, 3, 0)
+        layout.addWidget(self.remove_points_button, 4, 0)
+        layout.addWidget(self.manual_button, 5, 0)
+        layout.addWidget(self.approve_button, 6, 0)
+
+        layout.addWidget(self.skip_point_button, 4, 1)
+        layout.addWidget(self.manual_button2, 5, 1)
+        layout.addWidget(self.rerun_button, 6, 1)
 
         self.setLayout(layout)
 
@@ -425,13 +426,10 @@ class FrameViewer(QtWidgets.QWidget):
         self.prepare_strike()
 
     def go_to_next_specimen(self):
-        # if this is the last specimen, do something
         self.cur_specimen_index += 1
         if self.cur_specimen_index >= len(self.specimen_numbers):
-            # self.instruction_label.setText("All done!!!")
-            # possibly do something else, like close the GUI
             print("All specimens processed. Closing GUI.")
-            self.close()  # <-- this closes the GUI window
+            self.close()  
             return
         
         self.prepare_specimen()
@@ -677,6 +675,11 @@ class FrameViewer(QtWidgets.QWidget):
         self.detail_label.setText(
             f"{self.cur_specimen_number}, analyzing strike {self.strike_number}, mode {self.mode}"
         )
+
+        self.detail_label.setText(
+            f'{self.cur_specimen_number}, analyzing strike: {self.strike_number}, mode: {self.mode}'
+        )
+        self.detail_label.setStyleSheet("font-weight: bold; font-size: 14px;")
 
     def on_slider_change(self, value):
         self.current_frame = value
