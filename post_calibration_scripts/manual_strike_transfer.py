@@ -33,6 +33,7 @@ import qtpy.QtWidgets as QtWidgets
 import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
 
+import subprocess
 
 class FrameViewer(QtWidgets.QWidget):
     def __init__(
@@ -150,12 +151,22 @@ class FrameViewer(QtWidgets.QWidget):
         layout.addWidget(self.manual_button2, 5, 1)
         layout.addWidget(self.rerun_button, 6, 1)
 
+        # Testing Manual Alignment
+        self.open_alignment_gui_button = QtWidgets.QPushButton("Open Manual Alignment Viewer")
+        self.open_alignment_gui_button.setStyleSheet("background-color: #FFA500; font-weight: bold;")
+        self.open_alignment_gui_button.clicked.connect(self.launch_manual_alignment)
+        layout.addWidget(self.open_alignment_gui_button, 7, 1)  
+
         self.setLayout(layout)
 
         self.update_frame()
 
+    def launch_manual_alignment(self):
+        specimen = self.cur_specimen_number
+        subprocess.Popen(["python", "c:/Users/abhin/HighSpeedFLFM/post_calibration_scripts/manual_alignment_gui.py", specimen])
+
     def view_all_points(self):
-        self.mode = "view all"
+        self.mode = "view all"  
         self.update_frame()
         self.update_button_states()
 
@@ -867,8 +878,8 @@ if __name__ == "__main__":
         # specimen_numbers=["20250429_OB_1"],
         specimen_numbers=["20240506_OB_6"],
         heights=heights,
-        save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs", # don't give it a default folder
-        demo_mode=False 
+        save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs",
+        demo_mode=True 
     )
     viewer.show()
     sys.exit(app.exec_())

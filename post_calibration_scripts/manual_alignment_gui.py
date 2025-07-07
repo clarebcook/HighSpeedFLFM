@@ -18,6 +18,8 @@ import math
 import scipy
 from scipy.spatial import KDTree
 
+import sys
+
 # Initialize the Dash app
 app = dash.Dash(__name__)
 
@@ -38,7 +40,14 @@ sample_vertices, _ = trimesh.sample.sample_surface(
 )
 tree = KDTree(sample_vertices)
 
-aligner = Aligner("20240507_OB_2")
+if len(sys.argv) > 1:
+    specimen_number = sys.argv[1]
+    print(f"[INFO] Loading Speciment: {specimen_number}")
+else: 
+    specimen_number = "20240506_OB_6" #Manually specify 
+
+aligner = Aligner(specimen_number)
+
 #A_base, s_base = aligner.run_strike1_alignment()  
 A_base, s_base = aligner.run_base_alignment()
 mp1 = aligner.move_points_to_mesh(A_base, s_base, aligner.point_camera_locations)
@@ -332,4 +341,4 @@ def update_sliders_from_input(
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=True)
