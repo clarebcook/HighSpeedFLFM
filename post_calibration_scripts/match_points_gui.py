@@ -22,7 +22,7 @@ specimen_number = "20240506_OB_6"
 data_manager = MetadataManager(specimen_number=specimen_number)
 
 # specify if we're selecting alignment points or paint dots
-point_type = "paint"
+point_type = "alignment"
 type_list = ["alignment", "paint"]
 
 if point_type not in type_list:
