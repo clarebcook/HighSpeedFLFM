@@ -96,7 +96,6 @@ class FrameViewer(QtWidgets.QWidget):
         camera_numbers = info_manager.image_numbers
         if os.path.exists(save_name):
             self.match_points = load_dictionary(save_name)
-            #self.add_point_to_volume(self.match_points)
         else:
             self.match_points = {}
             for num in camera_numbers:

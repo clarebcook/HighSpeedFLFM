@@ -21,3 +21,4 @@ dependencies:
   - xarray
   - conda-forge::qtpy
   - openpyxl
+  - dash

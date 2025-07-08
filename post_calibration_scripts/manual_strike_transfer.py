@@ -51,7 +51,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.heights = heights
         self.current_frame = 0
 
-        self.basesavefolder = save_folder # This code to save folder location should go here. 
+        self.basesavefolder = save_folder 
         self.demo_mode = demo_mode
 
         self.prepare_specimen()
@@ -74,8 +74,8 @@ class FrameViewer(QtWidgets.QWidget):
             demo_banner.setStyleSheet("color: orange; font-weight: bold; font-size: 14px")
             layout.addWidget(demo_banner, 0, 1)
         else:
-            demo_banner = QtWidgets.QLabel(self.basesavefolder)
-            demo_banner.setStyleSheet("color: orange; font-weight: bold; font-size: 14px")
+            demo_banner = QtWidgets.QLabel("Save Folder: " + self.basesavefolder)
+            demo_banner.setStyleSheet("color: orange; font-weight: bold; font-size: 12px")
             layout.addWidget(demo_banner, 0, 1)
 
 
@@ -127,6 +127,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.manual_button.clicked.connect(self.prep_for_manual_alignment)
         self.manual_button2.clicked.connect(self.continue_manual_transfer)
         self.full_view_button.clicked.connect(self.view_all_points)
+
         self.skip_point_button.clicked.connect(self.skip_point)
         self.add_missing_points_button.clicked.connect(self.add_missing_points)
         self.remove_points_button.clicked.connect(self.remove_points)
@@ -159,6 +160,17 @@ class FrameViewer(QtWidgets.QWidget):
 
         self.setLayout(layout)
 
+        self.buttons = {
+            "skip_point_button": self.skip_point_button,
+            "approve_button": self.approve_button,
+            "remove_points_button": self.remove_points_button,
+            "manual_button": self.manual_button,
+            "manual_button2": self.manual_button2,
+            "rerun_button": self.rerun_button,
+            "add_missing_points_button": self.add_missing_points_button,
+            "full_view_button": self.full_view_button,
+        }
+
         self.update_frame()
 
     def launch_manual_alignment(self):
@@ -169,6 +181,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.mode = "view all"  
         self.update_frame()
         self.update_button_states()
+
 
     def get_filename(self):
         # very hard-coded, we'll adjust this
@@ -686,6 +699,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.detail_label.setText(
             f"{self.cur_specimen_number}, analyzing strike {self.strike_number}, mode {self.mode}"
         )
+        self.update_button_states()
 
         self.detail_label.setText(
             f'{self.cur_specimen_number}, analyzing strike: {self.strike_number}, mode: {self.mode}'
@@ -818,51 +832,68 @@ class FrameViewer(QtWidgets.QWidget):
         print()
 
     def update_button_states(self):
-        if self.mode == "add points":
-            self.skip_point_button.setEnabled(True)
-            self.approve_button.setEnabled(True)
-            self.remove_points_button.setEnabled(True)
-            self.manual_button.setEnabled(True)
-            self.manual_button2.setEnabled(False)
-            self.rerun_button.setEnabled(False)
-            self.add_missing_points_button.setEnabled(True)
-            self.full_view_button.setEnabled(True)
-        elif self.mode == "view all":
-            self.skip_point_button.setEnabled(False)
-            self.approve_button.setEnabled(True)
-            self.remove_points_button.setEnabled(True)
-            self.manual_button.setEnabled(True)
-            self.manual_button2.setEnabled(False)
-            self.rerun_button.setEnabled(False)
-            self.add_missing_points_button.setEnabled(True)
-            self.full_view_button.setEnabled(True)
-        elif self.mode == "remove points":
-            self.skip_point_button.setEnabled(False)
-            self.approve_button.setEnabled(True)
-            self.remove_points_button.setEnabled(True)
-            self.manual_button.setEnabled(True)
-            self.manual_button2.setEnabled(False)
-            self.rerun_button.setEnabled(False)
-            self.add_missing_points_button.setEnabled(True)
-            self.full_view_button.setEnabled(True)
-        elif self.mode == "manual align":
-            self.skip_point_button.setEnabled(True)
-            self.approve_button.setEnabled(True)
-            self.remove_points_button.setEnabled(True)
-            self.manual_button.setEnabled(True)
-            self.manual_button2.setEnabled(True)
-            self.rerun_button.setEnabled(True)
-            self.add_missing_points_button.setEnabled(True)
-            self.full_view_button.setEnabled(True)
-        else:  # default: view mode or any other mode
-            self.skip_point_button.setEnabled(True)
-            self.approve_button.setEnabled(True)
-            self.remove_points_button.setEnabled(True)
-            self.manual_button.setEnabled(True)
-            self.manual_button2.setEnabled(True)
-            self.rerun_button.setEnabled(False)
-            self.add_missing_points_button.setEnabled(True)
-            self.full_view_button.setEnabled(True)
+        button_state_config = {
+            "add points": {
+                "skip_point_button": True,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": False,
+                "rerun_button": False,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+            "view all": {
+                "skip_point_button": False,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": False,
+                "rerun_button": False,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+            "remove points": {
+                "skip_point_button": False,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": False,
+                "rerun_button": False,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+            "manual align": {
+                "skip_point_button": True,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": True,
+                "rerun_button": True,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+            "default": {
+                "skip_point_button": False,
+                "approve_button": True,
+                "remove_points_button": True,
+                "manual_button": True,
+                "manual_button2": True,
+                "rerun_button": False,
+                "add_missing_points_button": True,
+                "full_view_button": True,
+            },
+        }
+        # Default state
+        states = button_state_config.get(self.mode, button_state_config["default"])
+        # Apply states 
+        # Shouldn't throw an error when new buttons are added
+        for button_name, enabled in states.items():
+            button = self.buttons.get(button_name)
+            if button:
+                button.setEnabled(enabled)
+
+
 
 ## Change Settings Here
 
@@ -878,8 +909,8 @@ if __name__ == "__main__":
         # specimen_numbers=["20250429_OB_1"],
         specimen_numbers=["20240506_OB_6"],
         heights=heights,
-        save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs",
-        demo_mode=True 
+        save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs", 
+        demo_mode=False 
     )
     viewer.show()
     sys.exit(app.exec_())
