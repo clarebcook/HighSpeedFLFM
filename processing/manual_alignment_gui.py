@@ -19,6 +19,8 @@ import scipy
 from scipy.spatial import KDTree
 
 import sys
+from pathlib import Path
+import json
 
 # Initialize the Dash app
 app = dash.Dash(__name__)
@@ -33,6 +35,9 @@ mesh_z = mesh.vertices[:, 2]
 points_x, points_y, points_z = np.random.rand(3, 40)  # Example points data
 mesh_faces = mesh.faces
 
+# Initialize results dictionary
+alignment_results = {}
+
 # set up the tree
 sample_vertices, _ = trimesh.sample.sample_surface(
     mesh,
@@ -42,7 +47,6 @@ tree = KDTree(sample_vertices)
 
 if len(sys.argv) > 1:
     specimen_number = sys.argv[1]
-    print(f"[INFO] Loading Speciment: {specimen_number}")
 else: 
     specimen_number = "20240506_OB_6" #Manually specify 
 
@@ -254,6 +258,9 @@ app.layout = html.Div(
         ),
         # Plot
         dcc.Graph(id="3d-plot", figure=fig),
+
+        html.Button("Done", id="done-button"),
+        html.Div(id="status-div")
     ]
 )
 
@@ -299,6 +306,17 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     base_loss = scipy.special.huber(huber_delta, distances)
     base_loss[2] = 0 
     base_loss = np.mean(base_loss)
+
+    alignment_results.update({
+    "x": x + dx,
+    "y": y + dy,
+    "z": z + dz,
+    "roll": roll + droll,
+    "pitch": pitch + dpitch,
+    "yaw": yaw + dyaw,
+    "base_loss": base_loss
+    })
+
     print(base_loss / 1e6)
     #print(x, y, z, roll, pitch, yaw)
     #print(dx, dy, dz, droll, dpitch, dyaw)
@@ -339,6 +357,25 @@ def update_sliders_from_input(
 ):
     return x_value, y_value, z_value, roll_value, pitch_value, yaw_value
 
+
+
+@app.callback(
+    Output("status-div", "children"),
+    Input("done-button", "n_clicks"),
+    prevent_initial_call=True
+)
+def on_done_click(n_clicks):
+    output_path = Path(__file__).parent / "alignment_output.json"
+
+
+    result = alignment_results.copy()
+    result["base_loss"] = result["base_loss"] / 1e6  
+
+
+    with open(output_path, "w") as f:
+        json.dump(result, f, indent=2)
+
+    return "Alignment values saved. You may now close the window."
 
 if __name__ == "__main__":
     app.run(debug=True)

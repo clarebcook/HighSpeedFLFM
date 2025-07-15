@@ -34,6 +34,8 @@ import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
 
 import subprocess
+from pathlib import Path
+import json
 
 class FrameViewer(QtWidgets.QWidget):
     def __init__(
@@ -156,7 +158,11 @@ class FrameViewer(QtWidgets.QWidget):
         self.open_alignment_gui_button = QtWidgets.QPushButton("Open Manual Alignment Viewer")
         self.open_alignment_gui_button.setStyleSheet("background-color: #FFA500; font-weight: bold;")
         self.open_alignment_gui_button.clicked.connect(self.launch_manual_alignment)
-        layout.addWidget(self.open_alignment_gui_button, 7, 1)  
+        layout.addWidget(self.open_alignment_gui_button, 7, 0)  
+
+        self.load_manual_alignment_button = QtWidgets.QPushButton("Load Alignment Values")
+        self.load_manual_alignment_button.clicked.connect(self.load_manual_alignment_values)
+        layout.addWidget(self.load_manual_alignment_button,7, 1)
 
         self.setLayout(layout)
 
@@ -175,7 +181,36 @@ class FrameViewer(QtWidgets.QWidget):
 
     def launch_manual_alignment(self):
         specimen = self.cur_specimen_number
-        subprocess.Popen(["python", "c:/Users/abhin/HighSpeedFLFM/post_calibration_scripts/manual_alignment_gui.py", specimen])
+        man_align_path = Path(__file__).parent / "manual_alignment_gui.py"
+        subprocess.Popen(["python",str(man_align_path),specimen])
+
+    def load_manual_alignment_values(self):
+        output_path = Path(__file__).parent / "alignment_output.json"
+
+        if not output_path.exists():
+            print("Alignment file not found.")
+
+        with open(output_path, "r") as f:
+            values = json.load(f)
+
+        # Store coords
+        self.x_coord = values["x"]
+        self.y_coord = values["y"]
+        self.z_coord = values["z"]
+        self.roll = values["roll"]
+        self.pitch = values["pitch"]
+        self.yaw = values["yaw"]
+        self.base_loss = values["base_loss"]
+
+        # Print for now
+        print("Alignment values loaded:")
+        print("x:", self.x_coord)
+        print("y:", self.y_coord)
+        print("z:", self.z_coord)
+        print("roll:", self.roll)
+        print("pitch:", self.pitch)
+        print("yaw:", self.yaw)
+        print("base_loss:", self.base_loss)
 
     def view_all_points(self):
         self.mode = "view all"  
