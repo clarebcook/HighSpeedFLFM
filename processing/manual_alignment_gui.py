@@ -308,6 +308,7 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     base_loss = np.mean(base_loss)
 
     alignment_results.update({
+    "Specimen-Number": specimen_number,
     "x": x + dx,
     "y": y + dy,
     "z": z + dz,
@@ -365,10 +366,10 @@ def update_sliders_from_input(
     prevent_initial_call=True
 )
 def on_done_click(n_clicks):
-    output_path = Path(__file__).parent / "alignment_output.json"
-
+    output_path = Path(__file__).parent.resolve() / "alignment_output.json"
 
     result = alignment_results.copy()
+    result["Specimen-Number"] = specimen_number
     result["base_loss"] = result["base_loss"] / 1e6  
 
 

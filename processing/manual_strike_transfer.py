@@ -181,11 +181,11 @@ class FrameViewer(QtWidgets.QWidget):
 
     def launch_manual_alignment(self):
         specimen = self.cur_specimen_number
-        man_align_path = Path(__file__).parent / "manual_alignment_gui.py"
+        man_align_path = Path(__file__).parent.resolve() / "manual_alignment_gui.py"
         subprocess.Popen(["python",str(man_align_path),specimen])
 
     def load_manual_alignment_values(self):
-        output_path = Path(__file__).parent / "alignment_output.json"
+        output_path = Path(__file__).parent.resolve() / "alignment_output.json"
 
         if not output_path.exists():
             print("Alignment file not found.")
@@ -194,6 +194,7 @@ class FrameViewer(QtWidgets.QWidget):
             values = json.load(f)
 
         # Store coords
+        self.man_align_spec_num = values["Specimen-Number"]
         self.x_coord = values["x"]
         self.y_coord = values["y"]
         self.z_coord = values["z"]
@@ -203,7 +204,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.base_loss = values["base_loss"]
 
         # Print for now
-        print("Alignment values loaded:")
+        print(f"Specimen: {self.man_align_spec_num} — Alignment values loaded:")
         print("x:", self.x_coord)
         print("y:", self.y_coord)
         print("z:", self.z_coord)
