@@ -338,7 +338,7 @@ class FrameViewer(QtWidgets.QWidget):
         else:
             start_strike = None
         self.current_info = self.aligner.prepare_strike_results(
-            self.strike_number, start_strike=start_strike, show=True
+            self.strike_number, start_strike=start_strike, show=True #Turning off intitial viewer 
         )
 
         # TODO: this is heavily copied from "prepare_strike",
@@ -552,8 +552,9 @@ class FrameViewer(QtWidgets.QWidget):
             start_strike = 1
         else:
             start_strike = None
+        #Remove viewer
         self.current_info = self.aligner.prepare_strike_results(
-            self.strike_number, start_strike=start_strike, show=self.strike_number == 1
+            self.strike_number, start_strike=start_strike, show=False
         )
 
         # TODO: get rid of this again
@@ -928,6 +929,17 @@ class FrameViewer(QtWidgets.QWidget):
             button = self.buttons.get(button_name)
             if button:
                 button.setEnabled(enabled)
+
+    def closeEvent(self, event):
+        # Delete alignment_output.json if it exists once GUI is closed
+        output_path = Path(__file__).parent.resolve() / "alignment_output.json"
+        if output_path.exists():
+            try:
+                output_path.unlink()
+                print("Deleted alignment_output.json on GUI close.")
+            except Exception as e:
+                print(f"Failed to delete alignment_output.json: {e}")
+        event.accept()
 
 
 
