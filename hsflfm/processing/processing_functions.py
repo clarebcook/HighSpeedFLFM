@@ -270,8 +270,6 @@ def get_point_locations(system, match_points, *args, **kwargs):
         cam_num0 = camera_numbers[i]
         cam_num1 = camera_numbers[j]
 
-        print(cam_num0, cam_num1)
-
         points_cam0 = match_points[cam_num0]
         points_cam1 = match_points[cam_num1]
 
