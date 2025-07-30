@@ -24,31 +24,26 @@ class MetadataManager:
     @property
     def calibration_folder(self):
         folder = self.specimen_data["Calibration Folder"].values[0]
-        folder = str(folder)
         return data_folder + '/' + folder
 
     @property
     def video_folder(self):
         folder = self.specimen_data["Video Folder"].values[0]
-        folder = str(folder)
         return data_folder + '/' + folder
 
     @property
     def calibration_filename(self):
         filename = self.calibration_folder + "/" + "calibration_information"
-        filename = str(filename)
         return filename
 
     @property
     def alignment_folder(self):
         folder = self.specimen_data["Alignment Data Folder"].values[0]
-        folder = str(folder)
         return data_folder + '/' + folder
 
     @property
     def alignment_image_folder(self):
         folder = self.specimen_data["Alignment Image Folder"].values[0]
-        folder = str(folder)
         return data_folder + '/' + folder
 
     def get_strike_data(self, strike_number):
@@ -68,12 +63,11 @@ class MetadataManager:
     @property
     def alignment_points_filename(self):
         folder = self.alignment_folder
-        return folder + "/alignment_points_from_Clare"
+        return folder + "/alignment_points"
 
     @property
     def light_calibration_filename(self):
         folder = self.alignment_image_folder
-        folder = str(folder)
         filename = self.specimen_data["Alignment \n(side light)\n FileName"].values[0]
         return folder + "/" + filename
 
