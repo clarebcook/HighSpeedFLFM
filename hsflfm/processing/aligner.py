@@ -175,7 +175,6 @@ class Aligner:
         self,
         specimen_name,
         alignment_settings={},
-        # use_individual_base_alignment=True,
         base_alignment_values=None,
         use_rough_interstrike_alignment=True,
     ):
@@ -198,17 +197,6 @@ class Aligner:
         for key, value in alignment_settings.items():
             self.alignment_settings[key] = value
 
-        # if not use_individual_base_alignment:
-        #     self.base_alignment_values = None
-        # elif (
-        #     base_alignment_values is None
-        #     and self.specimen_name in default_individual_base_alignment
-        # ):
-        #     print("using manually specified pre-alignment")
-        #     self.base_alignment_values = default_individual_base_alignment[
-        #         self.specimen_name
-        #     ]
-        # else:
         self.base_alignment_values = base_alignment_values
 
         # this should be cleaned up, but for now, we know the points are in a certain order
@@ -426,6 +414,7 @@ class Aligner:
                 ).T
                 pmp = pmp + rough_shift
 
+                # then use cross correlation to refine the shift
                 # this could get thrown off by consistent background or mandibles
                 # so we'll crop in around the actual points
                 buffer = 15
@@ -859,5 +848,5 @@ class Aligner:
 
 
 if __name__ == "__main__":
-    a = Aligner("20240502_OB_3")
+    a = Aligner("20240502_OB_2")
     example_results = a.prepare_strike_results(strike_number=2, show=True)
