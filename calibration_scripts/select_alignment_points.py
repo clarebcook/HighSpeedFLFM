@@ -7,9 +7,8 @@ from PIL import Image
 
 # select any specimen filmed under the calibration conditions
 # alternatively, the calibration folder and filename can be manually specified
-specimen = "20240506_OB_6" # New change: redefined specimen
+specimen = "20250226_OB_2"
 mm = MetadataManager(specimen)
-#calibration_filename = r"C:/Users/abhin/Documents/Graduate School/Patek Research Docs/test_calibration.json"
 calibration_filename = mm.calibration_filename
 calibration_folder = mm.calibration_folder
 calibration_manager = CalibrationInfoManager(calibration_filename)
