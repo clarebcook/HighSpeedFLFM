@@ -279,9 +279,8 @@ class FrameViewer(QtWidgets.QWidget):
             self.aligner.stored_match_points[self.strike_number] = self.match_points
             self.aligner.stored_point_numbers[self.strike_number] = self.point_numbers
 
-        filename = self.get_filename()
-
         if not self.demo_mode:
+            filename = self.get_filename()
             save_dictionary(self.current_info, filename)
             print(f"Saved alignment results to {filename}")
         else:
@@ -588,12 +587,13 @@ class FrameViewer(QtWidgets.QWidget):
         #    self.current_info = load_dictionary(filename)
         #    print("WARNING LOADING PAST INFORMATION")
 
-        filename = self.get_filename()
-        if os.path.exists(filename):
-            print("WARNING: LOADING PAST INFORMATION")
-            self.current_info = load_dictionary(filename)
-        else:
-            print(f"{filename} not existing yet")
+        # TODO: can add this back in if we want to load past information
+        # filename = self.get_filename()
+        # if os.path.exists(filename):
+        #     print("WARNING: LOADING PAST INFORMATION")
+        #     self.current_info = load_dictionary(filename)
+        # else:
+        #     print(f"{filename} not existing yet")
 
         info = self.current_info
         # info["manually_transferred_points"] = []
