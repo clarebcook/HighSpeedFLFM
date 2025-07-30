@@ -54,6 +54,8 @@ class FrameViewer(QtWidgets.QWidget):
         self.prepare_specimen()
         self.initUI()
 
+        self.dash_proc = None
+
         # TODO: there's likely a better way to do this?
         self.mode = "view"
 
@@ -198,9 +200,13 @@ class FrameViewer(QtWidgets.QWidget):
         self.update_frame()
 
     def launch_manual_alignment(self):
+        if self.dash_proc is not None:
+            self.dash_proc.terminate()
+            self.dash_proc.kill()
+
         specimen = self.cur_specimen_number
         man_align_path = Path(__file__).parent.resolve() / "manual_alignment_gui.py"
-        subprocess.Popen(["python", str(man_align_path), specimen])
+        self.dash_proc = subprocess.Popen(["python", str(man_align_path), specimen])
 
     def load_manual_alignment_values(self):
         output_path = Path(__file__).parent.resolve() / "alignment_output.json"
@@ -960,6 +966,9 @@ class FrameViewer(QtWidgets.QWidget):
                 print("Deleted alignment_output.json on GUI close.")
             except Exception as e:
                 print(f"Failed to delete alignment_output.json: {e}")
+        if self.dash_proc is not None:
+            self.dash_proc.terminate()
+            self.dash_proc.kill()
         event.accept()
 
 
