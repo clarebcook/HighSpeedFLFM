@@ -45,6 +45,7 @@ sample_vertices, _ = trimesh.sample.sample_surface(
 )
 tree = KDTree(sample_vertices)
 
+<<<<<<< HEAD
 if len(sys.argv) > 1:
     specimen_number = sys.argv[1]
 else: 
@@ -54,6 +55,15 @@ aligner = Aligner(specimen_number)
 
 #A_base, s_base = aligner.run_strike1_alignment()  
 A_base, s_base = aligner.run_base_alignment()
+=======
+assert len(sys.argv) > 1
+specimen_number = sys.argv[1]
+
+aligner = Aligner(specimen_number)
+
+A_base, s_base = aligner.run_strike1_alignment()
+# A_base, s_base = aligner.run_base_alignment()
+>>>>>>> main
 mp1 = aligner.move_points_to_mesh(A_base, s_base, aligner.point_camera_locations)
 
 # Create the figure with a static mesh and dynamic points
@@ -258,16 +268,21 @@ app.layout = html.Div(
         ),
         # Plot
         dcc.Graph(id="3d-plot", figure=fig),
+<<<<<<< HEAD
 
         html.Button("Done", id="done-button"),
         html.Div(id="status-div")
+=======
+        html.Button("Done", id="done-button"),
+        html.Div(id="status-div"),
+>>>>>>> main
     ]
 )
 
 
 # Callback for sliders to update plot dynamically
 @app.callback(
-    [Output("3d-plot", "figure"), Output('loss-input', 'value')],
+    [Output("3d-plot", "figure"), Output("loss-input", "value")],
     [
         Input("x-slider", "value"),
         Input("y-slider", "value"),
@@ -299,14 +314,14 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     if relayout_data and "scene.camera" in relayout_data:
         fig.update_layout(scene_camera=relayout_data["scene.camera"])
 
-
     # get loss
-    distances, _ = tree.query(mp2) 
+    distances, _ = tree.query(mp2)
     huber_delta = 4000
     base_loss = scipy.special.huber(huber_delta, distances)
-    base_loss[2] = 0 
+    base_loss[2] = 0
     base_loss = np.mean(base_loss)
 
+<<<<<<< HEAD
     alignment_results.update({
     "Specimen-Number": specimen_number,
     "x": x + dx,
@@ -323,6 +338,21 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     #print(dx, dy, dz, droll, dpitch, dyaw)
     print(x + dx, y + dy, z + dz, roll + droll, pitch + dpitch, yaw + dyaw)
     print()
+=======
+    alignment_results.update(
+        {
+            "Specimen-Number": specimen_number,
+            "x": x + dx,
+            "y": y + dy,
+            "z": z + dz,
+            "roll": roll + droll,
+            "pitch": pitch + dpitch,
+            "yaw": yaw + dyaw,
+            "base_loss": base_loss,
+        }
+    )
+
+>>>>>>> main
     return fig, base_loss / 1e3
 
 
@@ -354,29 +384,59 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     ],
 )
 def update_sliders_from_input(
-    x_submit, y_submit, z_submit, roll_submit, pitch_submit, yaw_submit, x_value, y_value, z_value, roll_value, pitch_value, yaw_value
+    x_submit,
+    y_submit,
+    z_submit,
+    roll_submit,
+    pitch_submit,
+    yaw_submit,
+    x_value,
+    y_value,
+    z_value,
+    roll_value,
+    pitch_value,
+    yaw_value,
 ):
     return x_value, y_value, z_value, roll_value, pitch_value, yaw_value
 
 
+<<<<<<< HEAD
 
 @app.callback(
     Output("status-div", "children"),
     Input("done-button", "n_clicks"),
     prevent_initial_call=True
+=======
+@app.callback(
+    Output("status-div", "children"),
+    Input("done-button", "n_clicks"),
+    prevent_initial_call=True,
+>>>>>>> main
 )
 def on_done_click(n_clicks):
     output_path = Path(__file__).parent.resolve() / "alignment_output.json"
 
     result = alignment_results.copy()
     result["Specimen-Number"] = specimen_number
+<<<<<<< HEAD
     result["base_loss"] = result["base_loss"] / 1e6  
 
+=======
+    result["base_loss"] = result["base_loss"] / 1e6
+>>>>>>> main
 
     with open(output_path, "w") as f:
         json.dump(result, f, indent=2)
 
+<<<<<<< HEAD
     return "Alignment values saved. You may now close the window."
 
 if __name__ == "__main__":
     app.run(debug=True)
+=======
+    return f"Alignment values saved for {result["Specimen-Number"]}. You may now close the window."
+
+
+if __name__ == "__main__":
+    app.run(debug=False)
+>>>>>>> main
