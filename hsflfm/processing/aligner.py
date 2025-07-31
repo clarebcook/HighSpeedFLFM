@@ -73,26 +73,26 @@ default_alignment_settings = {
     "enforce_self_consistency": True,
 }
 
-# individual start points
-# for a few specific samples, the base alignment is far enough off
-# that these start locations/angles were manually selected for fine refinement
-# order is [x, y, z, roll, pitch, yaw, scale]
-# NOTE: these are rotations/translations FROM ant TO camera
-default_individual_base_alignment = {
-    "20220422_OB_1": [3.0, 1.77, -0.366, 0.00353, -0.3525, -2.96, 1727.69627255],
-    "20240502_OB_2": [
-        2.819,
-        1.647,
-        -0.125,
-        -0.120771,
-        -0.31184,
-        -2.9792,
-        1867.32301648,
-    ],
-    "20240507_OB_2": [3.056, 1.825, -0.19818, -0.14607, -0.29805, 2.97, 1502.546848],
-    "20240503_OB_3": [2.559, 2.3911, -0.4566, -0.13919, 0.2422, -3.075, 1619.64],
-    "20250212_OB_1": [3.276, 2.441, 0.714, 0.286, -0.070, 3.1, 1724],
-}
+# # individual start points
+# # for a few specific samples, the base alignment is far enough off
+# # that these start locations/angles were manually selected for fine refinement
+# # order is [x, y, z, roll, pitch, yaw, scale]
+# # NOTE: these are rotations/translations FROM ant TO camera
+# default_individual_base_alignment = {
+#     "20220422_OB_1": [3.0, 1.77, -0.366, 0.00353, -0.3525, -2.96, 1727.69627255],
+#     "20240502_OB_2": [
+#         2.819,
+#         1.647,
+#         -0.125,
+#         -0.120771,
+#         -0.31184,
+#         -2.9792,
+#         1867.32301648,
+#     ],
+#     "20240507_OB_2": [3.056, 1.825, -0.19818, -0.14607, -0.29805, 2.97, 1502.546848],
+#     "20240503_OB_3": [2.559, 2.3911, -0.4566, -0.13919, 0.2422, -3.075, 1619.64],
+#     "20250212_OB_1": [3.276, 2.441, 0.714, 0.286, -0.070, 3.1, 1724],
+# }
 
 # this is to help with alignment between strikes
 # for a small number of ants, there was a very large shift between strikes
@@ -175,7 +175,6 @@ class Aligner:
         self,
         specimen_name,
         alignment_settings={},
-        use_individual_base_alignment=True,
         base_alignment_values=None,
         use_rough_interstrike_alignment=True,
     ):
@@ -198,18 +197,7 @@ class Aligner:
         for key, value in alignment_settings.items():
             self.alignment_settings[key] = value
 
-        if not use_individual_base_alignment:
-            self.base_alignment_values = None
-        elif (
-            base_alignment_values is None
-            and self.specimen_name in default_individual_base_alignment
-        ):
-            print("using manually specified pre-alignment")
-            self.base_alignment_values = default_individual_base_alignment[
-                self.specimen_name
-            ]
-        else:
-            self.base_alignment_values = base_alignment_values
+        self.base_alignment_values = base_alignment_values
 
         # this should be cleaned up, but for now, we know the points are in a certain order
         # and we will keep only those
@@ -426,6 +414,7 @@ class Aligner:
                 ).T
                 pmp = pmp + rough_shift
 
+                # then use cross correlation to refine the shift
                 # this could get thrown off by consistent background or mandibles
                 # so we'll crop in around the actual points
                 buffer = 15
@@ -859,5 +848,5 @@ class Aligner:
 
 
 if __name__ == "__main__":
-    a = Aligner("20240502_OB_3")
+    a = Aligner("20240502_OB_2")
     example_results = a.prepare_strike_results(strike_number=2, show=True)

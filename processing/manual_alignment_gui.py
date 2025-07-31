@@ -18,6 +18,10 @@ import math
 import scipy
 from scipy.spatial import KDTree
 
+import sys
+from pathlib import Path
+import json
+
 # Initialize the Dash app
 app = dash.Dash(__name__)
 
@@ -31,6 +35,9 @@ mesh_z = mesh.vertices[:, 2]
 points_x, points_y, points_z = np.random.rand(3, 40)  # Example points data
 mesh_faces = mesh.faces
 
+# Initialize results dictionary
+alignment_results = {}
+
 # set up the tree
 sample_vertices, _ = trimesh.sample.sample_surface(
     mesh,
@@ -38,9 +45,13 @@ sample_vertices, _ = trimesh.sample.sample_surface(
 )
 tree = KDTree(sample_vertices)
 
-aligner = Aligner("20240507_OB_2")
-#A_base, s_base = aligner.run_strike1_alignment()  
-A_base, s_base = aligner.run_base_alignment()
+assert len(sys.argv) > 1
+specimen_number = sys.argv[1]
+
+aligner = Aligner(specimen_number)
+
+A_base, s_base = aligner.run_strike1_alignment()
+# A_base, s_base = aligner.run_base_alignment()
 mp1 = aligner.move_points_to_mesh(A_base, s_base, aligner.point_camera_locations)
 
 # Create the figure with a static mesh and dynamic points
@@ -245,13 +256,15 @@ app.layout = html.Div(
         ),
         # Plot
         dcc.Graph(id="3d-plot", figure=fig),
+        html.Button("Done", id="done-button"),
+        html.Div(id="status-div"),
     ]
 )
 
 
 # Callback for sliders to update plot dynamically
 @app.callback(
-    [Output("3d-plot", "figure"), Output('loss-input', 'value')],
+    [Output("3d-plot", "figure"), Output("loss-input", "value")],
     [
         Input("x-slider", "value"),
         Input("y-slider", "value"),
@@ -283,18 +296,26 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     if relayout_data and "scene.camera" in relayout_data:
         fig.update_layout(scene_camera=relayout_data["scene.camera"])
 
-
     # get loss
-    distances, _ = tree.query(mp2) 
+    distances, _ = tree.query(mp2)
     huber_delta = 4000
     base_loss = scipy.special.huber(huber_delta, distances)
-    base_loss[2] = 0 
+    base_loss[2] = 0
     base_loss = np.mean(base_loss)
-    print(base_loss / 1e6)
-    #print(x, y, z, roll, pitch, yaw)
-    #print(dx, dy, dz, droll, dpitch, dyaw)
-    print(x + dx, y + dy, z + dz, roll + droll, pitch + dpitch, yaw + dyaw)
-    print()
+
+    alignment_results.update(
+        {
+            "Specimen-Number": specimen_number,
+            "x": x + dx,
+            "y": y + dy,
+            "z": z + dz,
+            "roll": roll + droll,
+            "pitch": pitch + dpitch,
+            "yaw": yaw + dyaw,
+            "base_loss": base_loss,
+        }
+    )
+
     return fig, base_loss / 1e3
 
 
@@ -326,10 +347,39 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     ],
 )
 def update_sliders_from_input(
-    x_submit, y_submit, z_submit, roll_submit, pitch_submit, yaw_submit, x_value, y_value, z_value, roll_value, pitch_value, yaw_value
+    x_submit,
+    y_submit,
+    z_submit,
+    roll_submit,
+    pitch_submit,
+    yaw_submit,
+    x_value,
+    y_value,
+    z_value,
+    roll_value,
+    pitch_value,
+    yaw_value,
 ):
     return x_value, y_value, z_value, roll_value, pitch_value, yaw_value
 
 
+@app.callback(
+    Output("status-div", "children"),
+    Input("done-button", "n_clicks"),
+    prevent_initial_call=True,
+)
+def on_done_click(n_clicks):
+    output_path = Path(__file__).parent.resolve() / "alignment_output.json"
+
+    result = alignment_results.copy()
+    result["Specimen-Number"] = specimen_number
+    result["base_loss"] = result["base_loss"] / 1e6
+
+    with open(output_path, "w") as f:
+        json.dump(result, f, indent=2)
+
+    return f"Alignment values saved for {result["Specimen-Number"]}. You may now close the window."
+
+
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    app.run(debug=False)
