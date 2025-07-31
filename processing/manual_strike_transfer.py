@@ -279,9 +279,8 @@ class FrameViewer(QtWidgets.QWidget):
             self.aligner.stored_match_points[self.strike_number] = self.match_points
             self.aligner.stored_point_numbers[self.strike_number] = self.point_numbers
 
-        filename = self.get_filename()
-
         if not self.demo_mode:
+            filename = self.get_filename()
             save_dictionary(self.current_info, filename)
             print(f"Saved alignment results to {filename}")
         else:
@@ -317,9 +316,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.strike_A_cam_ant = np.matmul(prev_matrix, A_cam2_to_cam1)
 
     def rerun(self):
-        if self.mode != "manual align":
-            print("I don't know what to do with this yet")
-            return
+        assert self.mode == "manual align"
         self.manually_modified = True
 
         # update rough alignment for the current strike
@@ -350,8 +347,6 @@ class FrameViewer(QtWidgets.QWidget):
             ):
                 update_next = True
 
-        print("I will be updating next")
-
         self.aligner.rough_interstrike_alignment[int(self.strike_number)] = all_avg_diff
         if update_next:
             self.aligner.rough_interstrike_alignment[next_strike_number] = all_avg_diff
@@ -364,7 +359,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.current_info = self.aligner.prepare_strike_results(
             self.strike_number,
             start_strike=start_strike,
-            show=True,  # Turning off intitial viewer
+            show=True,  # this will show the updated alignment
         )
 
         # TODO: this is heavily copied from "prepare_strike",
@@ -486,14 +481,16 @@ class FrameViewer(QtWidgets.QWidget):
             if self.point_index >= len(points):
                 # do something to alert that there's no more points
                 self.mode = "view"
+                self.update_frame()
                 return
         elif self.mode == "add points":
-            # we pretty much just stay at self.point_index = 0
+            # we stay at current point index
+            # because points get removed from self.missing_points
             points = self.missing_points
             if len(points) <= self.point_index:
                 self.mode = "view"
+                self.update_frame()
                 return
-
         self.point_number = int(points[int(self.point_index)])
         self.update_frame()
 
@@ -590,12 +587,13 @@ class FrameViewer(QtWidgets.QWidget):
         #    self.current_info = load_dictionary(filename)
         #    print("WARNING LOADING PAST INFORMATION")
 
-        filename = self.get_filename()
-        if os.path.exists(filename):
-            print("WARNING: LOADING PAST INFORMATION")
-            self.current_info = load_dictionary(filename)
-        else:
-            print(f"{filename} not existing yet")
+        # TODO: can add this back in if we want to load past information
+        # filename = self.get_filename()
+        # if os.path.exists(filename):
+        #     print("WARNING: LOADING PAST INFORMATION")
+        #     self.current_info = load_dictionary(filename)
+        # else:
+        #     print(f"{filename} not existing yet")
 
         info = self.current_info
         # info["manually_transferred_points"] = []
@@ -760,13 +758,10 @@ class FrameViewer(QtWidgets.QWidget):
             # p = self.strike1_match_points[self.system.reference_camera][self.point_number]
             # self.scene_static.addEllipse(p[1], p[0], 3, 3, QtGui.QPen(Qt.red))
 
-        self.detail_label.setText(
-            f"{self.cur_specimen_number}, analyzing strike {self.strike_number}, mode {self.mode}"
-        )
         self.update_button_states()
 
         self.detail_label.setText(
-            f"{self.cur_specimen_number}, analyzing strike: {self.strike_number}, mode: {self.mode}"
+            f"{self.cur_specimen_number}, analyzing strike: {int(self.strike_number)}, mode: {self.mode}"
         )
         self.detail_label.setStyleSheet("font-weight: bold; font-size: 14px;")
 
@@ -984,10 +979,10 @@ if __name__ == "__main__":
         # ],
         # specimen_numbers=["20250226_OB_2"],  # , "20240503_OB_3"],
         # specimen_numbers=["20250429_OB_1"],
-        specimen_numbers=["20240503_OB_3"],
+        specimen_numbers=["20240507_OB_2"],
         heights=heights,
         save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs",
-        demo_mode=False,
+        demo_mode=True,
     )
     viewer.show()
     sys.exit(app.exec_())

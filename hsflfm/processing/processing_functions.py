@@ -261,7 +261,7 @@ def get_point_locations(system, match_points, *args, **kwargs):
 
     num_points = len(match_points[camera_numbers[0]])
     estimates = np.zeros((num_combos * 2, num_points, 3))
-    weights = np.zeros(num_combos * 2)
+    weights = np.zeros((num_combos * 2, num_points))
 
     count = 0
     for i, j in np.ndindex((num_cameras, num_cameras)):
@@ -297,20 +297,24 @@ def get_point_locations(system, match_points, *args, **kwargs):
             slope0_cam1, slope1_cam1 = system.get_shift_slopes(
                 cam_num1, [point_cam1[0]], [point_cam1[1]]
             )
+
+            # we will produce separate x and y estimates using plane_from_dx and plane_from_dy
+
             # the 0 indexing on slope0_cam0 and others is because get_shift_slopes returns a list
-            x = point_cam0[0] - slope0_cam0[0] * plane_from_dx
-            y = point_cam0[1] - slope1_cam0[0] * plane_from_dy
+            # we could get these from either camera, so we're choosing to use cam0
+            x0 = point_cam0[0] - slope0_cam0[0] * plane_from_dx
+            y0 = point_cam0[1] - slope1_cam0[0] * plane_from_dx
+            x1 = point_cam0[0] - slope0_cam0[0] * plane_from_dy
+            y1 = point_cam0[1] - slope1_cam0[0] * plane_from_dy
 
             # Then shift the pixel values to their location in the reference camera
-            # ideally we would use x0, x1, y0, y1 instead of point_cam0 and point_cam1
-            # because inter-camera shifts are measured at the reference plane
-            # but we do it this way to prevent large height estimation errors in plane_from_dx OR plane_from_dy
-            # from affecting estimations in the other dimension
             shiftx_cam0, shifty_cam0 = system.get_pixel_shifts(
                 cam_num0, [point_cam0[0]], [point_cam0[1]]
             )
-            x = x + shiftx_cam0[0]
-            y = y + shifty_cam0[0]
+            x0 = x0 + shiftx_cam0[0]
+            y0 = y0 + shifty_cam0[0]
+            x1 = x1 + shiftx_cam0[0]
+            y1 = y1 + shifty_cam0[0]
 
             # to switch to mm, use the magnificaiton at the reference camera
             # since we would've already taken into account differences in magnificaiton
@@ -322,23 +326,23 @@ def get_point_locations(system, match_points, *args, **kwargs):
             magnification_dim1 = system.get_magnification_at_plane(
                 camera_number=system.reference_camera, plane_mm=0, dim=1
             )
-            x_mm = x / magnification_dim0 * pixel_size_m * 1e3
-            y_mm = y / magnification_dim1 * pixel_size_m * 1e3
+            x_mm0 = x0 / magnification_dim0 * pixel_size_m * 1e3
+            y_mm0 = y0 / magnification_dim1 * pixel_size_m * 1e3
+            x_mm1 = x1 / magnification_dim0 * pixel_size_m * 1e3
+            y_mm1 = y1 / magnification_dim1 * pixel_size_m * 1e3
 
-            estimates[count * 2, point_number] = [x_mm, y_mm, plane_from_dx]
-            estimates[count * 2 + 1, point_number] = [x_mm, y_mm, plane_from_dy]
+            estimates[count * 2, point_number] = [x_mm0, y_mm0, plane_from_dx]
+            estimates[count * 2 + 1, point_number] = [x_mm1, y_mm1, plane_from_dy]
 
-            weights[count * 2] = abs(slope0_cam0 - slope0_cam1)
-            weights[count * 2 + 1] = abs(slope1_cam0 - slope1_cam1)
+            weights[count * 2, point_number] = abs(slope0_cam0[0] - slope0_cam1[0])
+            weights[count * 2 + 1, point_number] = abs(slope1_cam0[0] - slope1_cam1[0])
 
         count += 1
 
-    # this is NOT the correct way to handle this multiplication
-    weights_ = np.repeat(weights[:, None], estimates.shape[1], axis=1)
-    weights_ = np.repeat(weights_[:, :, None], estimates.shape[2], axis=2)
+    weights = np.repeat(weights[:, :, None], estimates.shape[2], axis=2)
+    weighted_estimates = estimates * weights
 
-    weighted_estimates = estimates * weights_
-    locations = np.sum(weighted_estimates, axis=0) / np.sum(weights)
+    locations = np.sum(weighted_estimates, axis=0) / np.sum(weights, axis=0)
     locations[:, 2] *= -1
     return locations
 
