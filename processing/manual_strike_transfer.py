@@ -36,7 +36,10 @@ from qtpy.QtCore import Qt
 import subprocess
 from pathlib import Path
 import json
+<<<<<<< HEAD
+=======
 
+>>>>>>> main
 
 class FrameViewer(QtWidgets.QWidget):
     def __init__(self, specimen_numbers, heights, save_folder, demo_mode=False):
@@ -120,9 +123,13 @@ class FrameViewer(QtWidgets.QWidget):
 
         self.skip_point_button = QtWidgets.QPushButton(text="Skip Point")
         self.full_view_button = QtWidgets.QPushButton(text="View All")
+<<<<<<< HEAD
+        self.add_missing_points_button = QtWidgets.QPushButton(text="Add Missing Points")
+=======
         self.add_missing_points_button = QtWidgets.QPushButton(
             text="Add Missing Points"
         )
+>>>>>>> main
         self.remove_points_button = QtWidgets.QPushButton(text="Remove Points")
 
         # Connect Buttons
@@ -137,6 +144,13 @@ class FrameViewer(QtWidgets.QWidget):
         self.remove_points_button.clicked.connect(self.remove_points)
 
         # Button Formatting
+<<<<<<< HEAD
+        self.full_view_button.setStyleSheet("background-color: #6A5ACD; font-weight: bold;")
+        self.add_missing_points_button.setStyleSheet("background-color: #6A5ACD; font-weight: bold;")
+        self.remove_points_button.setStyleSheet("background-color: #6A5ACD; font-weight: bold;")
+        self.manual_button.setStyleSheet("background-color: #6A5ACD; font-weight: bold;")
+        self.approve_button.setStyleSheet("background-color: #2E8B57; color: white; font-weight: bold;")
+=======
         self.detail_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         
         self.full_view_button.setStyleSheet(
@@ -154,6 +168,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.approve_button.setStyleSheet(
             "background-color: #2E8B57; color: white; font-weight: bold;"
         )
+>>>>>>> main
 
         # GUI Layout
         layout.addWidget(self.detail_label, 0, 0)
@@ -169,6 +184,16 @@ class FrameViewer(QtWidgets.QWidget):
         layout.addWidget(self.rerun_button, 6, 1)
 
         # Testing Manual Alignment
+<<<<<<< HEAD
+        self.open_alignment_gui_button = QtWidgets.QPushButton("Open Manual Alignment Viewer")
+        self.open_alignment_gui_button.setStyleSheet("background-color: #FFA500; font-weight: bold;")
+        self.open_alignment_gui_button.clicked.connect(self.launch_manual_alignment)
+        layout.addWidget(self.open_alignment_gui_button, 7, 0)  
+
+        self.load_manual_alignment_button = QtWidgets.QPushButton("Load Alignment Values")
+        self.load_manual_alignment_button.clicked.connect(self.load_manual_alignment_values)
+        layout.addWidget(self.load_manual_alignment_button,7, 1)
+=======
         self.open_alignment_gui_button = QtWidgets.QPushButton(
             "Open Manual Alignment Viewer"
         )
@@ -185,6 +210,7 @@ class FrameViewer(QtWidgets.QWidget):
             self.load_manual_alignment_values
         )
         layout.addWidget(self.load_manual_alignment_button, 7, 1)
+>>>>>>> main
 
         self.setLayout(layout)
 
@@ -202,6 +228,11 @@ class FrameViewer(QtWidgets.QWidget):
         self.update_frame()
 
     def launch_manual_alignment(self):
+<<<<<<< HEAD
+        specimen = self.cur_specimen_number
+        man_align_path = Path(__file__).parent.resolve() / "manual_alignment_gui.py"
+        subprocess.Popen(["python",str(man_align_path),specimen])
+=======
         if self.dash_proc is not None:
             self.dash_proc.terminate()
             self.dash_proc.kill()
@@ -209,6 +240,7 @@ class FrameViewer(QtWidgets.QWidget):
         specimen = self.cur_specimen_number
         man_align_path = Path(__file__).parent.resolve() / "manual_alignment_gui.py"
         self.dash_proc = subprocess.Popen(["python", str(man_align_path), specimen])
+>>>>>>> main
 
     def load_manual_alignment_values(self):
         output_path = Path(__file__).parent.resolve() / "alignment_output.json"
@@ -219,6 +251,27 @@ class FrameViewer(QtWidgets.QWidget):
         with open(output_path, "r") as f:
             values = json.load(f)
 
+<<<<<<< HEAD
+        # Store coords
+        self.man_align_spec_num = values["Specimen-Number"]
+        self.x_coord = values["x"]
+        self.y_coord = values["y"]
+        self.z_coord = values["z"]
+        self.roll = values["roll"]
+        self.pitch = values["pitch"]
+        self.yaw = values["yaw"]
+        self.base_loss = values["base_loss"]
+
+        # Print for now
+        print(f"Specimen: {self.man_align_spec_num} — Alignment values loaded:")
+        print("x:", self.x_coord)
+        print("y:", self.y_coord)
+        print("z:", self.z_coord)
+        print("roll:", self.roll)
+        print("pitch:", self.pitch)
+        print("yaw:", self.yaw)
+        print("base_loss:", self.base_loss)
+=======
         # base alignment values are currently expected as a list:
         # [x, y, z, roll, pitch, yaw, scale]
         base_alignment_values = [
@@ -239,10 +292,12 @@ class FrameViewer(QtWidgets.QWidget):
             "Give a warning that this will start the whole process over for this specimen"
         )
         self.prepare_specimen(base_alignment_values=base_alignment_values)
+>>>>>>> main
 
     def view_all_points(self):
-        self.mode = "view all"
+        self.mode = "view all"  
         self.update_frame()
+        self.update_button_states()
 
     def get_filename(self):
         # very hard-coded, we'll adjust this
@@ -358,9 +413,13 @@ class FrameViewer(QtWidgets.QWidget):
         else:
             start_strike = None
         self.current_info = self.aligner.prepare_strike_results(
+<<<<<<< HEAD
+            self.strike_number, start_strike=start_strike, show=True #Turning off intitial viewer 
+=======
             self.strike_number,
             start_strike=start_strike,
             show=True,  # this will show the updated alignment
+>>>>>>> main
         )
 
         # TODO: this is heavily copied from "prepare_strike",
@@ -447,6 +506,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.point_index = 0
         self.point_number = int(self.cycle_points[int(self.point_index)])
         self.update_frame()
+        self.update_button_states()
         return
 
     def add_missing_points(self):
@@ -458,11 +518,13 @@ class FrameViewer(QtWidgets.QWidget):
         self.mode = "add points"
         self.point_number = int(self.missing_points[int(self.point_index)])
         self.update_frame()
+        self.update_button_states()
         return
 
     def remove_points(self):
         self.mode = "remove points"
         self.update_frame()
+        self.update_button_states()
         return
 
     def skip_point(self):
@@ -510,7 +572,11 @@ class FrameViewer(QtWidgets.QWidget):
         self.cur_specimen_index += 1
         if self.cur_specimen_index >= len(self.specimen_numbers):
             print("All specimens processed. Closing GUI.")
+<<<<<<< HEAD
+            self.close()  
+=======
             self.close()
+>>>>>>> main
             return
 
         self.prepare_specimen()
@@ -574,7 +640,11 @@ class FrameViewer(QtWidgets.QWidget):
             start_strike = 1
         else:
             start_strike = None
+<<<<<<< HEAD
+        #Remove viewer
+=======
 
+>>>>>>> main
         self.current_info = self.aligner.prepare_strike_results(
             self.strike_number, start_strike=start_strike, show=False
         )
@@ -759,9 +829,16 @@ class FrameViewer(QtWidgets.QWidget):
         self.update_button_states()
 
         self.detail_label.setText(
+<<<<<<< HEAD
+            f'{self.cur_specimen_number}, analyzing strike: {self.strike_number}, mode: {self.mode}'
+        )
+        self.detail_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+
+=======
             f"{self.cur_specimen_number}, analyzing strike: {int(self.strike_number)}, mode: {self.mode}"
         )
        
+>>>>>>> main
     def on_slider_change(self, value):
         self.current_frame = value
         self.update_frame()
@@ -952,6 +1029,8 @@ class FrameViewer(QtWidgets.QWidget):
         # Determine if this is the first strike
         is_first_strike = (self.strike_index == 0)
 
+<<<<<<< HEAD
+=======
         # Check if manual point transfer already begun
         has_started_manual_transfer = (len(self.manual_align_point_numbers) > 0)
 
@@ -964,6 +1043,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.open_alignment_gui_button.setEnabled(is_first_strike)
 
 
+>>>>>>> main
     def closeEvent(self, event):
         # Delete alignment_output.json if it exists once GUI is closed
         output_path = Path(__file__).parent.resolve() / "alignment_output.json"
@@ -973,10 +1053,15 @@ class FrameViewer(QtWidgets.QWidget):
                 print("Deleted alignment_output.json on GUI close.")
             except Exception as e:
                 print(f"Failed to delete alignment_output.json: {e}")
+<<<<<<< HEAD
+        event.accept()
+
+=======
         if self.dash_proc is not None:
             self.dash_proc.terminate()
             self.dash_proc.kill()
         event.accept()
+>>>>>>> main
 
 
 ## Change Settings Here

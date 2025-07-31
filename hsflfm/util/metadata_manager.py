@@ -68,7 +68,7 @@ class MetadataManager:
     @property
     def alignment_points_filename(self):
         folder = self.alignment_folder
-        return folder + "/alignment_points"
+        return folder + "/alignment_points_from_Clare"
 
     @property
     def light_calibration_filename(self):

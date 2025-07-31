@@ -45,6 +45,17 @@ sample_vertices, _ = trimesh.sample.sample_surface(
 )
 tree = KDTree(sample_vertices)
 
+<<<<<<< HEAD
+if len(sys.argv) > 1:
+    specimen_number = sys.argv[1]
+else: 
+    specimen_number = "20240506_OB_6" #Manually specify 
+
+aligner = Aligner(specimen_number)
+
+#A_base, s_base = aligner.run_strike1_alignment()  
+A_base, s_base = aligner.run_base_alignment()
+=======
 assert len(sys.argv) > 1
 specimen_number = sys.argv[1]
 
@@ -52,6 +63,7 @@ aligner = Aligner(specimen_number)
 
 A_base, s_base = aligner.run_strike1_alignment()
 # A_base, s_base = aligner.run_base_alignment()
+>>>>>>> main
 mp1 = aligner.move_points_to_mesh(A_base, s_base, aligner.point_camera_locations)
 
 # Create the figure with a static mesh and dynamic points
@@ -256,8 +268,14 @@ app.layout = html.Div(
         ),
         # Plot
         dcc.Graph(id="3d-plot", figure=fig),
+<<<<<<< HEAD
+
+        html.Button("Done", id="done-button"),
+        html.Div(id="status-div")
+=======
         html.Button("Done", id="done-button"),
         html.Div(id="status-div"),
+>>>>>>> main
     ]
 )
 
@@ -303,6 +321,24 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     base_loss[2] = 0
     base_loss = np.mean(base_loss)
 
+<<<<<<< HEAD
+    alignment_results.update({
+    "Specimen-Number": specimen_number,
+    "x": x + dx,
+    "y": y + dy,
+    "z": z + dz,
+    "roll": roll + droll,
+    "pitch": pitch + dpitch,
+    "yaw": yaw + dyaw,
+    "base_loss": base_loss
+    })
+
+    print(base_loss / 1e6)
+    #print(x, y, z, roll, pitch, yaw)
+    #print(dx, dy, dz, droll, dpitch, dyaw)
+    print(x + dx, y + dy, z + dz, roll + droll, pitch + dpitch, yaw + dyaw)
+    print()
+=======
     alignment_results.update(
         {
             "Specimen-Number": specimen_number,
@@ -316,6 +352,7 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
         }
     )
 
+>>>>>>> main
     return fig, base_loss / 1e3
 
 
@@ -363,23 +400,43 @@ def update_sliders_from_input(
     return x_value, y_value, z_value, roll_value, pitch_value, yaw_value
 
 
+<<<<<<< HEAD
+
+@app.callback(
+    Output("status-div", "children"),
+    Input("done-button", "n_clicks"),
+    prevent_initial_call=True
+=======
 @app.callback(
     Output("status-div", "children"),
     Input("done-button", "n_clicks"),
     prevent_initial_call=True,
+>>>>>>> main
 )
 def on_done_click(n_clicks):
     output_path = Path(__file__).parent.resolve() / "alignment_output.json"
 
     result = alignment_results.copy()
     result["Specimen-Number"] = specimen_number
+<<<<<<< HEAD
+    result["base_loss"] = result["base_loss"] / 1e6  
+
+=======
     result["base_loss"] = result["base_loss"] / 1e6
+>>>>>>> main
 
     with open(output_path, "w") as f:
         json.dump(result, f, indent=2)
 
+<<<<<<< HEAD
+    return "Alignment values saved. You may now close the window."
+
+if __name__ == "__main__":
+    app.run(debug=True)
+=======
     return f"Alignment values saved for {result["Specimen-Number"]}. You may now close the window."
 
 
 if __name__ == "__main__":
     app.run(debug=False)
+>>>>>>> main
