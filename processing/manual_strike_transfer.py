@@ -243,7 +243,6 @@ class FrameViewer(QtWidgets.QWidget):
     def view_all_points(self):
         self.mode = "view all"
         self.update_frame()
-        self.update_button_states()
 
     def get_filename(self):
         # very hard-coded, we'll adjust this
@@ -448,7 +447,6 @@ class FrameViewer(QtWidgets.QWidget):
         self.point_index = 0
         self.point_number = int(self.cycle_points[int(self.point_index)])
         self.update_frame()
-        self.update_button_states()
         return
 
     def add_missing_points(self):
@@ -460,13 +458,11 @@ class FrameViewer(QtWidgets.QWidget):
         self.mode = "add points"
         self.point_number = int(self.missing_points[int(self.point_index)])
         self.update_frame()
-        self.update_button_states()
         return
 
     def remove_points(self):
         self.mode = "remove points"
         self.update_frame()
-        self.update_button_states()
         return
 
     def skip_point(self):

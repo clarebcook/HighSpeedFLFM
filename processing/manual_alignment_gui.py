@@ -47,14 +47,8 @@ tree = KDTree(sample_vertices)
 
 if len(sys.argv) > 1:
     specimen_number = sys.argv[1]
-<<<<<<< ours
-else:
-    specimen_number = "20240506_OB_6"  # Manually specify
-
-=======
 #else: 
 #    specimen_number = "20240506_OB_6" #Manually specify 
->>>>>>> theirs
 
 aligner = Aligner(specimen_number)
 
