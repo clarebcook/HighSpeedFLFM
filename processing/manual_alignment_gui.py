@@ -47,9 +47,8 @@ tree = KDTree(sample_vertices)
 
 if len(sys.argv) > 1:
     specimen_number = sys.argv[1]
-else:
-    specimen_number = "20240506_OB_6"  # Manually specify
-
+#else: 
+#    specimen_number = "20240506_OB_6" #Manually specify 
 
 aligner = Aligner(specimen_number)
 
@@ -372,7 +371,7 @@ def update_sliders_from_input(
     prevent_initial_call=True,
 )
 def on_done_click(n_clicks):
-    output_path = Path(__file__).parent.resolve() / "alignment_output.json"
+    output_path = Path(__file__).parent.resolve() / ".alignment_output.json"
 
     result = alignment_results.copy()
     result["Specimen-Number"] = specimen_number

@@ -137,6 +137,8 @@ class FrameViewer(QtWidgets.QWidget):
         self.remove_points_button.clicked.connect(self.remove_points)
 
         # Button Formatting
+        self.detail_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        
         self.full_view_button.setStyleSheet(
             "background-color: #6A5ACD; font-weight: bold;"
         )
@@ -763,8 +765,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.detail_label.setText(
             f"{self.cur_specimen_number}, analyzing strike: {int(self.strike_number)}, mode: {self.mode}"
         )
-        self.detail_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-
+       
     def on_slider_change(self, value):
         self.current_frame = value
         self.update_frame()
@@ -951,6 +952,21 @@ class FrameViewer(QtWidgets.QWidget):
             button = self.buttons.get(button_name)
             if button:
                 button.setEnabled(enabled)
+    
+        # Determine if this is the first strike
+        is_first_strike = (self.strike_index == 0)
+
+        # Check if manual point transfer already begun
+        has_started_manual_transfer = (len(self.manual_align_point_numbers) > 0)
+
+        # Manual point transfer buttons
+        self.manual_button.setEnabled(not is_first_strike) 
+        self.manual_button2.setEnabled(not is_first_strike and has_started_manual_transfer) 
+
+        # Manual alignment buttons
+        self.load_manual_alignment_button.setEnabled(is_first_strike)
+        self.open_alignment_gui_button.setEnabled(is_first_strike)
+
 
     def closeEvent(self, event):
         # Delete alignment_output.json if it exists once GUI is closed
@@ -979,7 +995,7 @@ if __name__ == "__main__":
         # ],
         # specimen_numbers=["20250226_OB_2"],  # , "20240503_OB_3"],
         # specimen_numbers=["20250429_OB_1"],
-        specimen_numbers=["20240507_OB_2"],
+        specimen_numbers=["20240506_OB_6"],
         heights=heights,
         save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs",
         demo_mode=True,
