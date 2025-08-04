@@ -346,29 +346,41 @@ class StrikeProcessor:
         self.global_movement = global_movement
         self.affine_matrices = affine_matrices
 
-    def condense_info(self):
+    def condense_info(self, displacements_only=False):
         self.result_info["predicted_flow_vectors"] = self.all_flow_predictions.tolist()
         self.result_info["camera_weights"] = self.all_weights.tolist()
         self.result_info["regression_settings"] = self.regression_settings
         self.result_info["iteration_losses"] = self.all_iteration_losses.tolist()
         self.result_info["camera_point_displacements"] = self.all_displacements.tolist()
-        self.result_info["points_used_in_gm"] = self.low_loss_points.tolist()
-        self.result_info["rel_displacements"] = self.rel_displacements.tolist()
-        self.result_info["affine_matrices"] = self.affine_matrices.tolist()
         self.result_info["camera_start_locations"] = self.start_positions.tolist()
-        listed_global_movement = {}
-        for key, item in self.global_movement.items():
-            listed_global_movement[key] = item.tolist()
-        self.result_info["global_movement"] = listed_global_movement
-
         self.result_info["regression_settings"] = self.regression_settings
-        self.result_info["global_movement_settings"] = self.global_movement_settings
-        self.result_info["flow_settings"] = self.flow_settings
 
         self.result_info["time"] = get_timestamp()
-        self.result_info["error_metric"] = self.error_metric
 
-        # all_keys = torch.cat((copy_keys, assert_keys, new_keys))
+        if not displacements_only:
+            self.result_info["points_used_in_gm"] = self.low_loss_points.tolist()
+            self.result_info["rel_displacements"] = self.rel_displacements.tolist()
+            self.result_info["affine_matrices"] = self.affine_matrices.tolist()
+            listed_global_movement = {}
+            for key, item in self.global_movement.items():
+                listed_global_movement[key] = item.tolist()
+            self.result_info["global_movement"] = listed_global_movement
+            self.result_info["global_movement_settings"] = self.global_movement_settings
+            self.result_info["flow_settings"] = self.flow_settings
+            self.result_info["error_metric"] = self.error_metric
+
+        rel_movement_keys = [
+            "points_used_in_gm",
+            "rel_displacements",
+            "affine_matrices",
+            "global_movement",
+            "global_movement_settings",
+            "flow_settings",
+            "error_metric",
+            "threshold_loss",
+        ]
         for key in new_keys:
+            if displacements_only and key in rel_movement_keys:
+                continue
             assert key in self.result_info
         return self.result_info
