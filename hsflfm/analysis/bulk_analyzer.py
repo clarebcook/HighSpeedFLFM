@@ -1,4 +1,4 @@
-from hsflfm.util import load_dictionary, matmul, MetadataManager
+from hsflfm.util import load_dictionary, matmul, MetadataManager, save_dictionary
 from hsflfm.ant_model import M_mesh_ant, mesh_scale
 from .basic_functions import (
     get_peak_indices,
@@ -11,6 +11,8 @@ from tqdm import tqdm
 import torch
 import numpy as np
 from scipy.spatial import cKDTree
+import os
+from pathlib import Path
 
 load_value_list = [
     "specimen_number",
@@ -26,8 +28,8 @@ load_value_list = [
     "flow_at_peak_sq",
     "average_flow_sq",
     "mesh_points",
-    "huber_loss_at_peak",
-    "average_huber_loss",
+    # "huber_loss_at_peak",
+    # "average_huber_loss",
     "strike_center_indices",
     "mandible_start_frames",
     "mandible_order",
@@ -120,28 +122,28 @@ class ResultManager:
         diff = flow_vectors - predictions
         return diff
 
-    def peak_huber_loss(self, dim=2):
-        peak_indices = self.peak_indices(dim=dim)
-        loss = torch.asarray(self.result_info["huber_loss"])
-        p = torch.arange(loss.shape[0])
-        peak_loss = loss[p, :, peak_indices]
-        return peak_loss
+    # def peak_huber_loss(self, dim=2):
+    #     peak_indices = self.peak_indices(dim=dim)
+    #     loss = torch.asarray(self.result_info["huber_loss"])
+    #     p = torch.arange(loss.shape[0])
+    #     peak_loss = loss[p, :, peak_indices]
+    #     return peak_loss
 
-    def huber_loss_around_strike(self, center_index=None, half_length=12):
-        if center_index is None:
-            center_index = self.strike_center_index(dim=2)
+    # def huber_loss_around_strike(self, center_index=None, half_length=12):
+    #     if center_index is None:
+    #         center_index = self.strike_center_index(dim=2)
 
-        loss = torch.asarray(self.result_info["huber_loss"])
-        # avergae losses over a range
-        loss_c = loss[
-            :,
-            :,
-            max(center_index - half_length, 0) : min(
-                center_index + half_length + 1, loss.shape[-1]
-            ),
-        ]
+    #     loss = torch.asarray(self.result_info["huber_loss"])
+    #     # avergae losses over a range
+    #     loss_c = loss[
+    #         :,
+    #         :,
+    #         max(center_index - half_length, 0) : min(
+    #             center_index + half_length + 1, loss.shape[-1]
+    #         ),
+    #     ]
 
-        return torch.mean(torch.abs(loss_c), axis=-1)
+    #     return torch.mean(torch.abs(loss_c), axis=-1)
 
     def peak_flow_differences(self, dim=2):
         peak_indices = self.peak_indices(dim=dim)
@@ -174,6 +176,38 @@ class ResultManager:
         average_flow_sq = self.flow_diff_around_strike(half_length=12, square=True)
         _, sorted = sort_by_camera(average_flow_sq[:, :, None], treat_individually=True)
         return torch.mean(sorted[:, :2].squeeze(), axis=1)
+
+
+# 20250804
+# this could likely be done in a cleaner way
+# but is currently the easiest method, though it makes some assumptions
+# about file organization
+def build_bulk_analyzer(result_folder, save_results=True, reload=False):
+    res_filename = f"{result_folder}/loaded_results.json"
+    if os.path.exists(res_filename) and not reload:
+        analyzer = BulkAnalyzer(None)
+        analyzer.all_results = load_dictionary(res_filename)
+        for key, value in analyzer.all_results.items():
+            if key in ["specimen_number", "mandible_order"]:
+                analyzer.all_results[key] = np.asarray(value)
+                continue
+            analyzer.all_results[key] = torch.asarray(value)
+    else:
+        # get names of all filenames
+        folders = os.listdir(result_folder)
+        all_filenames = []
+        for inner in folders:
+            path = Path(result_folder) / inner
+            if path.is_dir():
+                filenames = os.listdir(path)
+                for filename in filenames:
+                    if filename[-4:] == "json":
+                        all_filenames.append(str(path / filename))
+        analyzer = BulkAnalyzer(all_filenames)
+        analyzer.load_results()
+        if save_results:
+            save_dictionary(analyzer.all_results, res_filename)
+    return analyzer
 
 
 class BulkAnalyzer:
@@ -218,8 +252,8 @@ class BulkAnalyzer:
 
             center_index = result_manager.strike_center_index()
 
-            peak_huber_loss = result_manager.peak_huber_loss()
-            range_huber_loss = result_manager.huber_loss_around_strike(half_length=12)
+            # peak_huber_loss = result_manager.peak_huber_loss()
+            # range_huber_loss = result_manager.huber_loss_around_strike(half_length=12)
 
             num_points = len(result_dict["point_numbers"])
 
@@ -248,8 +282,8 @@ class BulkAnalyzer:
                 peak_flow_sq,
                 average_flow_sq,
                 start_locations_mesh,
-                peak_huber_loss,
-                range_huber_loss,
+                # peak_huber_loss,
+                # range_huber_loss,
                 torch.asarray([center_index] * num_points),
                 start_frames,
                 mandible_order,
@@ -284,7 +318,7 @@ class BulkAnalyzer:
     # this is a little hand-wavy
     # but it's been a useful way to compare spatial trends
     # for strikes with different strength
-    def compute_strength_scores(self, error_threshold=0.015, k=15):
+    def compute_strength_scores(self, error_threshold=0.0015, k=15):
         all_error_scores = self.error_scores
         good_indices = torch.where(all_error_scores < error_threshold)
         _, neighbor_indices = self.get_closest_point_indices(k=k, indices=good_indices)
@@ -327,8 +361,8 @@ class BulkAnalyzer:
         okay_keys = [
             "flow_error_at_peak",
             "average_flow_error",
-            "huber_loss_at_peak",
-            "average_huber_loss",
+            # "huber_loss_at_peak",
+            # "average_huber_loss",
             "flow_at_peak_sq",
             "average_flow_sq",
         ]
