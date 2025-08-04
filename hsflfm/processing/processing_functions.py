@@ -1,8 +1,5 @@
-import xarray as xr
 import numpy as np
 import cv2
-
-from torch.optim import Adam
 
 import torch
 import torch.nn as nn
@@ -43,8 +40,12 @@ def world_frame_to_pixel(system, point, camera=2):
     return pixels
 
 
+# this will take in a set of approximately matching points
+# compute a height (based on an average)
+# and return the estimated pixel locations of a point
+# at that computed height
 def enforce_self_consistency(match_points, system):
-    # this could eventually be written to not necessarilyl
+    # this could eventually be written to not necessarily
     # maintain the location of the point in the reference image
     ref_camera = system.reference_camera
 

@@ -28,8 +28,6 @@ load_value_list = [
     "flow_at_peak_sq",
     "average_flow_sq",
     "mesh_points",
-    # "huber_loss_at_peak",
-    # "average_huber_loss",
     "strike_center_indices",
     "mandible_start_frames",
     "mandible_order",
@@ -122,29 +120,6 @@ class ResultManager:
         diff = flow_vectors - predictions
         return diff
 
-    # def peak_huber_loss(self, dim=2):
-    #     peak_indices = self.peak_indices(dim=dim)
-    #     loss = torch.asarray(self.result_info["huber_loss"])
-    #     p = torch.arange(loss.shape[0])
-    #     peak_loss = loss[p, :, peak_indices]
-    #     return peak_loss
-
-    # def huber_loss_around_strike(self, center_index=None, half_length=12):
-    #     if center_index is None:
-    #         center_index = self.strike_center_index(dim=2)
-
-    #     loss = torch.asarray(self.result_info["huber_loss"])
-    #     # avergae losses over a range
-    #     loss_c = loss[
-    #         :,
-    #         :,
-    #         max(center_index - half_length, 0) : min(
-    #             center_index + half_length + 1, loss.shape[-1]
-    #         ),
-    #     ]
-
-    #     return torch.mean(torch.abs(loss_c), axis=-1)
-
     def peak_flow_differences(self, dim=2):
         peak_indices = self.peak_indices(dim=dim)
         diff = self.flow_differences
@@ -179,6 +154,9 @@ class ResultManager:
 
 
 # 20250804
+# this first checks if bulk information has previously been saved
+# about the data in the provided folder, and loads if so.
+# otherwise, it opens all the relevent files and loads the information.
 # this could likely be done in a cleaner way
 # but is currently the easiest method, though it makes some assumptions
 # about file organization
@@ -210,6 +188,10 @@ def build_bulk_analyzer(result_folder, save_results=True, reload=False):
     return analyzer
 
 
+# this class manages in a useful way
+# information that can be condensed and saved about all the files
+# for easy comparisons and statistics
+# additional information could easily be added
 class BulkAnalyzer:
     def __init__(self, all_result_filenames):
         self.all_result_filenames = all_result_filenames
@@ -252,9 +234,6 @@ class BulkAnalyzer:
 
             center_index = result_manager.strike_center_index()
 
-            # peak_huber_loss = result_manager.peak_huber_loss()
-            # range_huber_loss = result_manager.huber_loss_around_strike(half_length=12)
-
             num_points = len(result_dict["point_numbers"])
 
             # get mandible information
@@ -282,8 +261,6 @@ class BulkAnalyzer:
                 peak_flow_sq,
                 average_flow_sq,
                 start_locations_mesh,
-                # peak_huber_loss,
-                # range_huber_loss,
                 torch.asarray([center_index] * num_points),
                 start_frames,
                 mandible_order,
@@ -361,8 +338,6 @@ class BulkAnalyzer:
         okay_keys = [
             "flow_error_at_peak",
             "average_flow_error",
-            # "huber_loss_at_peak",
-            # "average_huber_loss",
             "flow_at_peak_sq",
             "average_flow_sq",
         ]
