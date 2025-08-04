@@ -218,7 +218,7 @@ class ResultPlotter:
             cam_num = int(i / 2)
             dim = i % 2
             color = colors2[cam_num][dim]
-            ax0.plot(p0, alpha=0.5, color=color)
+            ax0.plot(p0, "--", alpha=0.5, color=color)
             label = f"cam {cam_num}, dim {dim}"
             ax0.plot(p1, color=color, label=label)
 
