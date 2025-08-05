@@ -45,17 +45,6 @@ sample_vertices, _ = trimesh.sample.sample_surface(
 )
 tree = KDTree(sample_vertices)
 
-<<<<<<< HEAD
-if len(sys.argv) > 1:
-    specimen_number = sys.argv[1]
-else: 
-    specimen_number = "20240506_OB_6" #Manually specify 
-
-aligner = Aligner(specimen_number)
-
-#A_base, s_base = aligner.run_strike1_alignment()  
-A_base, s_base = aligner.run_base_alignment()
-=======
 assert len(sys.argv) > 1
 specimen_number = sys.argv[1]
 
@@ -63,7 +52,6 @@ aligner = Aligner(specimen_number)
 
 A_base, s_base = aligner.run_strike1_alignment()
 # A_base, s_base = aligner.run_base_alignment()
->>>>>>> main
 mp1 = aligner.move_points_to_mesh(A_base, s_base, aligner.point_camera_locations)
 
 # Create the figure with a static mesh and dynamic points
@@ -101,6 +89,32 @@ fig = go.Figure(
         ),
     ]
 )
+
+empty_refined_fig = go.Figure(
+    data=[
+        go.Mesh3d(
+            x=mesh_x,
+            y=mesh_y,
+            z=mesh_z,
+            i=mesh_faces[:, 0],
+            j=mesh_faces[:, 1],
+            k=mesh_faces[:, 2],
+            opacity=0.5,
+            color="lightgray",
+            name="Ant Mesh",
+        )
+    ],
+    layout=go.Layout(
+        title="Refined Alignment Output",
+        scene=dict(
+            xaxis_title="X",
+            yaxis_title="Y",
+            zaxis_title="Z",
+            aspectmode="data",
+        ),
+    )
+)
+
 
 # Layout with sliders, input boxes, and plot
 app.layout = html.Div(
@@ -268,14 +282,11 @@ app.layout = html.Div(
         ),
         # Plot
         dcc.Graph(id="3d-plot", figure=fig),
-<<<<<<< HEAD
-
         html.Button("Done", id="done-button"),
-        html.Div(id="status-div")
-=======
-        html.Button("Done", id="done-button"),
+        html.Button("Refine Alignment", id="refine-button", style={"marginLeft": "10px"}),
         html.Div(id="status-div"),
->>>>>>> main
+        dcc.Graph(id="refined-plot", figure=empty_refined_fig, style={"height": "500px"}),
+
     ]
 )
 
@@ -321,24 +332,6 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     base_loss[2] = 0
     base_loss = np.mean(base_loss)
 
-<<<<<<< HEAD
-    alignment_results.update({
-    "Specimen-Number": specimen_number,
-    "x": x + dx,
-    "y": y + dy,
-    "z": z + dz,
-    "roll": roll + droll,
-    "pitch": pitch + dpitch,
-    "yaw": yaw + dyaw,
-    "base_loss": base_loss
-    })
-
-    print(base_loss / 1e6)
-    #print(x, y, z, roll, pitch, yaw)
-    #print(dx, dy, dz, droll, dpitch, dyaw)
-    print(x + dx, y + dy, z + dz, roll + droll, pitch + dpitch, yaw + dyaw)
-    print()
-=======
     alignment_results.update(
         {
             "Specimen-Number": specimen_number,
@@ -352,7 +345,6 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
         }
     )
 
->>>>>>> main
     return fig, base_loss / 1e3
 
 
@@ -400,43 +392,106 @@ def update_sliders_from_input(
     return x_value, y_value, z_value, roll_value, pitch_value, yaw_value
 
 
-<<<<<<< HEAD
-
-@app.callback(
-    Output("status-div", "children"),
-    Input("done-button", "n_clicks"),
-    prevent_initial_call=True
-=======
+# Done Button Functionality
 @app.callback(
     Output("status-div", "children"),
     Input("done-button", "n_clicks"),
     prevent_initial_call=True,
->>>>>>> main
 )
 def on_done_click(n_clicks):
     output_path = Path(__file__).parent.resolve() / "alignment_output.json"
 
     result = alignment_results.copy()
     result["Specimen-Number"] = specimen_number
-<<<<<<< HEAD
-    result["base_loss"] = result["base_loss"] / 1e6  
-
-=======
     result["base_loss"] = result["base_loss"] / 1e6
->>>>>>> main
 
     with open(output_path, "w") as f:
         json.dump(result, f, indent=2)
 
-<<<<<<< HEAD
-    return "Alignment values saved. You may now close the window."
-
-if __name__ == "__main__":
-    app.run(debug=True)
-=======
     return f"Alignment values saved for {result["Specimen-Number"]}. You may now close the window."
+
+
+# Refine Alignment button functionality
+@app.callback(
+    Output("refined-plot", "figure"),
+    Input("refine-button", "n_clicks"),
+    [
+        State("x-slider", "value"),
+        State("y-slider", "value"),
+        State("z-slider", "value"),
+        State("roll-slider", "value"),
+        State("pitch-slider", "value"),
+        State("yaw-slider", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def refine_alignment_display_only(n_clicks, dx, dy, dz, droll, dpitch, dyaw):
+    # Convert degrees to radians
+    droll = droll * math.pi / 180
+    dpitch = dpitch * math.pi / 180
+    dyaw = dyaw * math.pi / 180
+
+    # Build matrix from user-provided deltas
+    x, y, z, roll, pitch, yaw = rot_trans_from_matrix(A_base)
+    A_user = matrix_from_rot_trans(
+        x + dx, y + dy, z + dz,
+        roll + droll, pitch + dpitch, yaw + dyaw
+    )
+
+    # Run fine alignment
+    A_refined, _ = aligner.refine_matrix(
+        A_cam_ant_init=A_user,
+        ant_scale_init=s_base,
+        camera_points=aligner.point_camera_locations,
+        change_scale=False,
+    )
+
+    # Transform points using refined matrix
+    mp_refined = aligner.move_points_to_mesh(
+        A_refined,
+        s_base,
+        aligner.point_camera_locations,
+    )
+
+    # Create new 3D figure with mesh + refined points
+    fig = go.Figure(
+        data=[
+            # Ant CT mesh
+            go.Mesh3d(
+                x=mesh_x,
+                y=mesh_y,
+                z=mesh_z,
+                i=mesh_faces[:, 0],
+                j=mesh_faces[:, 1],
+                k=mesh_faces[:, 2],
+                opacity=0.5,
+                color="lightblue",
+                name="Ant Mesh",
+            ),
+            # Refined points
+            go.Scatter3d(
+                x=mp_refined[:, 0],
+                y=mp_refined[:, 1],
+                z=mp_refined[:, 2],
+                mode="markers",
+                marker=dict(size=5, color="green"),
+                name="Refined Points",
+            ),
+        ],
+        layout=go.Layout(
+            title="Refined Alignment Output",
+            scene=dict(
+                xaxis_title="X",
+                yaxis_title="Y",
+                zaxis_title="Z",
+                aspectmode="data",  # ensure mesh proportions aren't distorted
+            ),
+        ),
+    )
+
+    return fig
+
 
 
 if __name__ == "__main__":
     app.run(debug=False)
->>>>>>> main
