@@ -348,6 +348,24 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     return fig, base_loss / 1e3
 
 
+def compute_slider_values_from_alignment(x, y, z, roll, pitch, yaw, A_base):
+    x0, y0, z0, roll0, pitch0, yaw0 = rot_trans_from_matrix(A_base)
+
+    dx = x - x0
+    dy = y - y0
+    dz = z - z0
+    droll = (roll - roll0) * 180 / math.pi
+    dpitch = (pitch - pitch0) * 180 / math.pi
+    dyaw = (yaw - yaw0) * 180 / math.pi
+
+    return (
+        dx, dy, dz,
+        droll, dpitch, dyaw,
+        dx, dy, dz,
+        droll, dpitch, dyaw,
+    )
+
+
 # Callback to update sliders based on input values after pressing Enter
 @app.callback(
     [
@@ -357,39 +375,118 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
         Output("roll-slider", "value"),
         Output("pitch-slider", "value"),
         Output("yaw-slider", "value"),
+        Output("x-input", "value"),
+        Output("y-input", "value"),
+        Output("z-input", "value"),
+        Output("roll-input", "value"),
+        Output("pitch-input", "value"),
+        Output("yaw-input", "value"),
     ],
     [
+        Input("refine-button", "n_clicks"),
         Input("x-input", "n_submit"),
         Input("y-input", "n_submit"),
         Input("z-input", "n_submit"),
         Input("roll-input", "n_submit"),
         Input("pitch-input", "n_submit"),
         Input("yaw-input", "n_submit"),
+        Input("x-slider", "value"),
+        Input("y-slider", "value"),
+        Input("z-slider", "value"),
+        Input("roll-slider", "value"),
+        Input("pitch-slider", "value"),
+        Input("yaw-slider", "value"),
     ],
     [
-        Input("x-input", "value"),
-        Input("y-input", "value"),
-        Input("z-input", "value"),
-        Input("roll-input", "value"),
-        Input("pitch-input", "value"),
-        Input("yaw-input", "value"),
+        State("x-input", "value"),
+        State("y-input", "value"),
+        State("z-input", "value"),
+        State("roll-input", "value"),
+        State("pitch-input", "value"),
+        State("yaw-input", "value"),
+        State("x-slider", "value"),
+        State("y-slider", "value"),
+        State("z-slider", "value"),
+        State("roll-slider", "value"),
+        State("pitch-slider", "value"),
+        State("yaw-slider", "value"),
     ],
 )
-def update_sliders_from_input(
-    x_submit,
-    y_submit,
-    z_submit,
-    roll_submit,
-    pitch_submit,
-    yaw_submit,
-    x_value,
-    y_value,
-    z_value,
-    roll_value,
-    pitch_value,
-    yaw_value,
+
+def sync_slider_input(
+    refine_click,
+    x_submit, y_submit, z_submit,
+    roll_submit, pitch_submit, yaw_submit,
+    x_slider, y_slider, z_slider,
+    roll_slider, pitch_slider, yaw_slider,
+    x_input, y_input, z_input,
+    roll_input, pitch_input, yaw_input,
+    x_slider_prev, y_slider_prev, z_slider_prev,
+    roll_slider_prev, pitch_slider_prev, yaw_slider_prev,
 ):
-    return x_value, y_value, z_value, roll_value, pitch_value, yaw_value
+    ctx = dash.callback_context
+
+    if not ctx.triggered:
+        raise dash.exceptions.PreventUpdate
+
+    triggered_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    # Case 1: refine button was clicked
+    if triggered_id == "refine-button":
+        x0, y0, z0, roll0, pitch0, yaw0 = rot_trans_from_matrix(A_base)
+        A_user = matrix_from_rot_trans(
+            x0 + x_slider,
+            y0 + y_slider,
+            z0 + z_slider,
+            roll0 + roll_slider * math.pi / 180,
+            pitch0 + pitch_slider * math.pi / 180,
+            yaw0 + yaw_slider * math.pi / 180,
+        )
+        
+        A_refined, _ = aligner.refine_matrix(
+            A_cam_ant_init=A_user,
+            ant_scale_init=s_base,
+            camera_points=aligner.point_camera_locations,
+            change_scale=False,
+        )
+        x, y, z, roll, pitch, yaw = rot_trans_from_matrix(A_refined)
+        alignment_results.update({
+            "x": x, "y": y, "z": z,
+            "roll": roll, "pitch": pitch, "yaw": yaw,
+        })
+
+        x0, y0, z0, roll0, pitch0, yaw0 = rot_trans_from_matrix(A_base)
+        dx = x - x0
+        dy = y - y0
+        dz = z - z0
+        droll = (roll - roll0) * 180 / math.pi
+        dpitch = (pitch - pitch0) * 180 / math.pi
+        dyaw = (yaw - yaw0) * 180 / math.pi
+
+        return (
+            dx, dy, dz,
+            droll, dpitch, dyaw,
+            dx, dy, dz,
+            droll, dpitch, dyaw,
+        )
+
+    # Case 2: input fields triggered the change
+    elif "input" in triggered_id:
+        return (
+            x_input, y_input, z_input,
+            roll_input, pitch_input, yaw_input,
+            x_input, y_input, z_input,
+            roll_input, pitch_input, yaw_input,
+        )
+
+    # Case 3: slider was moved directly
+    else:
+        return (
+            x_slider, y_slider, z_slider,
+            roll_slider, pitch_slider, yaw_slider,
+            x_slider, y_slider, z_slider,
+            roll_slider, pitch_slider, yaw_slider,
+        )
 
 
 # Done Button Functionality
@@ -408,88 +505,8 @@ def on_done_click(n_clicks):
     with open(output_path, "w") as f:
         json.dump(result, f, indent=2)
 
-    return f"Alignment values saved for {result["Specimen-Number"]}. You may now close the window."
+    return f"Alignment values saved for {result['Specimen-Number']}. You may now close the window."
 
-
-# Refine Alignment button functionality
-@app.callback(
-    Output("refined-plot", "figure"),
-    Input("refine-button", "n_clicks"),
-    [
-        State("x-slider", "value"),
-        State("y-slider", "value"),
-        State("z-slider", "value"),
-        State("roll-slider", "value"),
-        State("pitch-slider", "value"),
-        State("yaw-slider", "value"),
-    ],
-    prevent_initial_call=True,
-)
-def refine_alignment_display_only(n_clicks, dx, dy, dz, droll, dpitch, dyaw):
-    # Convert degrees to radians
-    droll = droll * math.pi / 180
-    dpitch = dpitch * math.pi / 180
-    dyaw = dyaw * math.pi / 180
-
-    # Build matrix from user-provided deltas
-    x, y, z, roll, pitch, yaw = rot_trans_from_matrix(A_base)
-    A_user = matrix_from_rot_trans(
-        x + dx, y + dy, z + dz,
-        roll + droll, pitch + dpitch, yaw + dyaw
-    )
-
-    # Run fine alignment
-    A_refined, _ = aligner.refine_matrix(
-        A_cam_ant_init=A_user,
-        ant_scale_init=s_base,
-        camera_points=aligner.point_camera_locations,
-        change_scale=False,
-    )
-
-    # Transform points using refined matrix
-    mp_refined = aligner.move_points_to_mesh(
-        A_refined,
-        s_base,
-        aligner.point_camera_locations,
-    )
-
-    # Create new 3D figure with mesh + refined points
-    fig = go.Figure(
-        data=[
-            # Ant CT mesh
-            go.Mesh3d(
-                x=mesh_x,
-                y=mesh_y,
-                z=mesh_z,
-                i=mesh_faces[:, 0],
-                j=mesh_faces[:, 1],
-                k=mesh_faces[:, 2],
-                opacity=0.5,
-                color="lightblue",
-                name="Ant Mesh",
-            ),
-            # Refined points
-            go.Scatter3d(
-                x=mp_refined[:, 0],
-                y=mp_refined[:, 1],
-                z=mp_refined[:, 2],
-                mode="markers",
-                marker=dict(size=5, color="green"),
-                name="Refined Points",
-            ),
-        ],
-        layout=go.Layout(
-            title="Refined Alignment Output",
-            scene=dict(
-                xaxis_title="X",
-                yaxis_title="Y",
-                zaxis_title="Z",
-                aspectmode="data",  # ensure mesh proportions aren't distorted
-            ),
-        ),
-    )
-
-    return fig
 
 
 

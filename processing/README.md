@@ -60,6 +60,7 @@ If the 3D point alignment looks incorrect:
 
 - Click **“Open Manual Alignment Viewer”** in the GUI.
 - This launches `manual_alignment_gui.py`, which opens a browser-based 3D Dash viewer.
+- Use the sliders to adjust the alignment of the dynamic points, once finished click 'done' to export. 
 
 ---
 
@@ -75,7 +76,8 @@ The manual_strike_transfer GUI includes several buttons, each corresponding to a
 - **Continue Manual Transfer** — Resume a previous manual alignment session to add more points.
 - **Re-run Alignment** — Recalculates alignment based on current manually added points.
 - **Approve** — Finalizes the current strike and advances to the next.
-- **Open Manual Alignment Viewer** —  Launches the browser-based 3D model viewer.
+- **Open Manual Alignment Viewer** —  Launches the browser-based 3D model viewer from `manual_alignment_gui.py` as a subprocess.
+- **Load Alignment Values** - Loads user adjusted Alignment Values exported from the 3D model viewer.
 
 ---
 
@@ -87,6 +89,6 @@ The manual_strike_transfer GUI includes several buttons, each corresponding to a
    - Use “Add Missing Points” for unmatched points
    - Use “Remove Points” for incorrect or mistakenly placed points
    - Use “Manual Align” tools as needed
-   - Open the 3D viewer if alignment looks incorrect
-4. Use the 3D viewer if alignment of points needs to be adjusted.(Add more here when functionality with the coords is added)
+   - Open the 3D viewer to view alignment
+4. Use the sliders in the 3D viewer if alignment of points needs to be adjusted. When finished click 'done', this will save the alignment values to json that can be loaded within `manual_strike_transfer.py`.
 5. Once you're satisfied with the strike, click **“Approve”**. The GUI will automatically close once all strikes have been processed.
