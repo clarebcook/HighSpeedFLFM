@@ -32,6 +32,7 @@ import torch.nn.functional as F
 import qtpy.QtWidgets as QtWidgets
 import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
+from qtpy import uic
 
 import subprocess
 from pathlib import Path
@@ -51,7 +52,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.demo_mode = demo_mode
 
         self.prepare_specimen()
-        self.initUI()
+        self.initUI() # Toggle for old gui
 
         self.dash_proc = None
 
@@ -994,6 +995,7 @@ if __name__ == "__main__":
         # specimen_numbers=["20250226_OB_2"],  # , "20240503_OB_3"],
         # specimen_numbers=["20250429_OB_1"],
         specimen_numbers=["20240502_OB_2"],
+        #specimen_numbers=["20240506_OB_6"],
         heights=heights,
         save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs",
         demo_mode=True,
