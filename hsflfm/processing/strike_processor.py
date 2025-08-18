@@ -4,11 +4,10 @@
 from .processing_functions import (
     get_point_locations,
     get_flow_vectors,
-    ParallelLinear,
-    ModifiedHuber,
     gaussian_filter,
     get_global_movement,
     estimate_affine_transform,
+    solve_weighted_system,
 )
 from hsflfm.util import MetadataManager, load_split_video, get_timestamp
 from hsflfm.calibration import FLF_System
@@ -16,30 +15,17 @@ from hsflfm.analysis import get_strike_center, sort_by_camera
 
 import numpy as np
 import torch
-from torch.optim import Adam
 from scipy.ndimage import gaussian_filter1d
 
 # default settings
 default_regression_settings = {
     "data_scale": 100,
-    "learning_rate": 0.02,
-    "adjust_sigma_freq": 50,
     "max_iterations": 3000,
-    "start_weight_steps": 400,
-    "base_delta": 0.07,
-    "min_steps": 5,
     "filter_sigma": 3,
     "filter_size": 10,
-    "alpha": 0.9,
-    "weight_update_scale": 10,
-    # 2024/10/03, the thresholds were chosen using data_scale = 100
-    # almost certainly need to be modified to account for that
-    # I'm also not totally sure this is the best way to handle this
-    "diff_thresh": 1e-4,
-    "weight_step_thresh": 0.005,
-    # how many frames to use on either side of the max strike point
-    # when getting the camera weights
-    "weight_calc_frames": None,  # set to None for time varying weights
+    "alpha": 0.8,
+    "weight_update_scale": 2,
+    "weight_change_thresh": 1e-4,
 }
 
 default_flow_settings = {
@@ -69,14 +55,13 @@ new_keys = [
     "regression_settings",
     "global_movement_settings",
     "camera_weights",
-    "huber_loss",
     "points_used_in_gm",
     "predicted_flow_vectors",
     "unfiltered_flow_vectors",
     "flow_vectors",
     "iteration_losses",
     "threshold_loss",
-    "error_metric"
+    "error_metric",
 ]
 
 
@@ -181,85 +166,44 @@ class StrikeProcessor:
         return all_coeffs
 
     def run_regression(self, device="cpu"):
-        dev = torch.device(device)
-
-        data_scale = self.regression_settings["data_scale"]
-        base_delta = self.regression_settings["base_delta"]
-
-        iterations = self.regression_settings["max_iterations"]
-        iteration_losses = torch.zeros((self.num_points, iterations))
-
-        all_coeffs = self._get_coeffs()
-        all_measurements = self.flow_vectors.to(dev).to(torch.float32) * data_scale
-
-        model = ParallelLinear(all_coeffs, self.num_frames).to(dev)
-        huber_loss = ModifiedHuber(
-            base_delta=base_delta * self.regression_settings["data_scale"]
-        ).to(dev)
-        optimizer = Adam(
-            model.parameters(), lr=self.regression_settings["learning_rate"]
-        )
         filt = gaussian_filter(
             size=self.regression_settings["filter_size"],
             sigma=self.regression_settings["filter_sigma"],
-        ).to(dev)
+        ).to(device)
 
-        weights = torch.ones_like(all_measurements)
+        with torch.no_grad():
+            dev = torch.device(device)
+            data_scale = self.regression_settings["data_scale"]
+            weight_change_thresh = self.regression_settings["weight_change_thresh"]
+            max_iters = self.regression_settings["max_iterations"]
+            weight_update_scale = self.regression_settings["weight_update_scale"]
+            alpha = self.regression_settings["alpha"]
 
-        use_camera_weights = True
-        # for each point, save the time of its last weight step
-        last_weight_steps = torch.zeros(self.num_points, dtype=torch.int)
-        stop_ready = torch.zeros(self.num_points, dtype=torch.bool)
+            measurements = self.flow_vectors.to(dev).to(torch.float32)
+            weights = torch.ones_like(measurements)
+            matrices = self._get_coeffs()
 
-        for i in range(iterations):
-            optimizer.zero_grad()
-
-            flow_predictions = model()
-
-            full_loss = huber_loss(flow_predictions, all_measurements, weights=weights)
-
-            loss = torch.mean(full_loss)
-            loss.backward()
-            optimizer.step()
-
-            iteration_losses[:, i] = torch.mean(full_loss, axis=(1, 2))
-
-            if not use_camera_weights:
-                continue
-
-            # decide which points are ready for weight udpates
-            enough_steps = i - last_weight_steps > self.regression_settings["min_steps"]
-            diff = torch.diff(iteration_losses, axis=1)[:, i - 1]
-            take_weight_step = (
-                (torch.abs(diff) < self.regression_settings["diff_thresh"])
-                | (
-                    (last_weight_steps == 0)
-                    & (i > self.regression_settings["start_weight_steps"])
-                )
-                | (
-                    (last_weight_steps > 0)
-                    & (
-                        i - last_weight_steps
-                        > self.regression_settings["adjust_sigma_freq"]
-                    )
-                )
+            all_weights = torch.zeros(
+                (max_iters, weights.shape[0], weights.shape[1], weights.shape[2])
             )
-            take_weight_step = take_weight_step & enough_steps
-            if not take_weight_step.any():
-                continue
+            all_errors = torch.zeros_like(all_weights)
 
-            with torch.no_grad():
-                camera_loss = torch.abs(all_measurements - flow_predictions)
+            for i in range(max_iters):
+                values = solve_weighted_system(
+                    matrices, weights, measurements * data_scale
+                )
+                flow_predictions = torch.matmul(matrices, values)
+                errors = (flow_predictions - measurements * data_scale) ** 2
+                camera_loss = errors.clone()
 
                 # I'm sure there's a better way to do this
-                # combining the 6 flow losses into 3 camera losses
+                # combining the flow losses into camera losses
                 for cam_num in range(self.num_cameras):
                     cl = torch.mean(
                         camera_loss[:, 2 * cam_num : 2 * cam_num + 2], axis=1
                     )
                     camera_loss[:, [2 * cam_num]] = cl[:, None, :]
                     camera_loss[:, [2 * cam_num + 1]] = cl[:, None, :]
-
                 loss_reshape = camera_loss.reshape(
                     (
                         camera_loss.shape[0] * camera_loss.shape[1],
@@ -268,53 +212,29 @@ class StrikeProcessor:
                     )
                 )
 
-                weight_calc_frames = self.regression_settings["weight_calc_frames"]
-                alpha = self.regression_settings["alpha"]
-                weight_update_scale = self.regression_settings["weight_update_scale"]
-
-                if weight_calc_frames is None:  # use time varying weights
-                    camera_loss = filt(loss_reshape).reshape(camera_loss.shape)
-                else:
-                    # pull the strike time from the flows
-                    # the weights are still just in an array for simplicity with the
-                    # time varying version
-                    disp = model.displacements.permute(0, 2, 1) / data_scale
-                    strike_center = self.get_run_strike_center(disp[:, :, 2])
-                    start = max(strike_center - weight_calc_frames, 0)
-                    end = min(camera_loss.shape[-1], strike_center + weight_calc_frames)
-                    shortened_loss = camera_loss[:, :, start:end]
-                    mean_loss = torch.mean(shortened_loss, axis=-1)[:, :, None]
-                    camera_loss = mean_loss.repeat((1, 1, camera_loss.shape[-1]))
-
-                updated_weights = alpha * weights + (1 - alpha) * torch.exp(
-                    -torch.abs(weight_update_scale * camera_loss / data_scale)
+                camera_loss = filt(loss_reshape).reshape(camera_loss.shape)
+                weights = alpha * weights + (1 - alpha) * torch.exp(
+                    -torch.abs(
+                        weight_update_scale * torch.sqrt(camera_loss) / data_scale
+                    )
                 )
 
-                weights[take_weight_step] = updated_weights[take_weight_step]
+                all_weights[i] = weights
+                all_errors[i] = errors
+                # check if the weights have stopped updating
+                if i == 0:
+                    continue
+                diff = torch.abs(all_weights[i - 1] - weights)
+                if torch.max(diff) < weight_change_thresh:
+                    break
 
-                # a point is ready to stop if:
-                # 1. its loss has not changed much since the last weight step
-                # 2. it has taken a step
-                past_loss = iteration_losses[
-                    torch.arange(iteration_losses.shape[0]), last_weight_steps
-                ]
-                current_loss = iteration_losses[:, i]
-                stop = (
-                    torch.abs(past_loss - current_loss)
-                    < self.regression_settings["weight_step_thresh"]
-                )
-                stop_ready[take_weight_step] = stop[take_weight_step]
+            all_weights = all_weights[:i]
+            all_errors = all_errors[:i]
 
-                last_weight_steps[take_weight_step] = i
-            if stop_ready.all():
-                break
-
-        self.all_displacements = (
-            model.displacements.permute(0, 2, 1).cpu().detach() / data_scale
-        )
+        all_errors = torch.sqrt(all_errors) / data_scale
+        self.all_displacements = values.permute(0, 2, 1).cpu().detach() / data_scale
         self.all_displacements[:, :, 2] *= -1
-        self.all_iteration_losses = iteration_losses.cpu().detach()
-        self.all_full_loss = full_loss.cpu().detach()
+        self.all_iteration_losses = all_errors.cpu().detach()
         self.all_weights = weights[:, ::2].cpu().detach()
         self.all_flow_predictions = flow_predictions.cpu().detach() / data_scale
 
@@ -352,9 +272,9 @@ class StrikeProcessor:
         # we are using flow loss from the top two cameras
         loss_threshold = self.global_movement_settings["gm_loss_sq_threshold"]
         # this is just to compute the loss we want... could mvoe elsewhere
-        flow_diff_sq = (self.all_flow_predictions - self.flow_vectors)**2 
+        flow_diff_sq = (self.all_flow_predictions - self.flow_vectors) ** 2
         strike_center = get_strike_center(self.all_displacements[:, :, 2])
-        half_distance = 12 
+        half_distance = 12
         start_frame = max(0, strike_center - half_distance)
         end_frame = max(flow_diff_sq.shape[-1], strike_center + half_distance)
         flow_diff_sq = flow_diff_sq[:, :, start_frame:end_frame]
@@ -364,10 +284,12 @@ class StrikeProcessor:
         self.result_info["threshold_loss"] = flow_diff_sq_top
         self.low_loss_points = flow_diff_sq_top <= loss_threshold
 
-        # if less than half the points are good, we adjust the threshold 
+        # if less than half the points are good, we adjust the threshold
         # to use half the points
         if np.count_nonzero(self.low_loss_points) < len(self.low_loss_points) / 2:
-            self.global_movement_settings["gm_loss_sq_threshold"] = float(torch.median(self.result_info["threshold_loss"]))
+            self.global_movement_settings["gm_loss_sq_threshold"] = float(
+                torch.median(self.result_info["threshold_loss"])
+            )
             self.low_loss_points = flow_diff_sq_top <= loss_threshold
 
         self.error_metric = flow_diff_sq_top
@@ -375,7 +297,8 @@ class StrikeProcessor:
         # Step 3: use stable ratio to give weighting to points
         stable_ratio = self.global_movement_settings["stable_ratio"]
         sp = torch.asarray(self.result_info["stable_points"]).to(bool)[
-            torch.asarray(self.result_info["point_numbers"])]
+            torch.asarray(self.result_info["point_numbers"])
+        ]
         sp = sp & self.low_loss_points
         nsp = ~sp & self.low_loss_points
 
@@ -423,30 +346,41 @@ class StrikeProcessor:
         self.global_movement = global_movement
         self.affine_matrices = affine_matrices
 
-    def condense_info(self):
+    def condense_info(self, displacements_only=False):
         self.result_info["predicted_flow_vectors"] = self.all_flow_predictions.tolist()
         self.result_info["camera_weights"] = self.all_weights.tolist()
-        self.result_info["huber_loss"] = self.all_full_loss.tolist()
         self.result_info["regression_settings"] = self.regression_settings
         self.result_info["iteration_losses"] = self.all_iteration_losses.tolist()
         self.result_info["camera_point_displacements"] = self.all_displacements.tolist()
-        self.result_info["points_used_in_gm"] = self.low_loss_points.tolist()
-        self.result_info["rel_displacements"] = self.rel_displacements.tolist()
-        self.result_info["affine_matrices"] = self.affine_matrices.tolist()
         self.result_info["camera_start_locations"] = self.start_positions.tolist()
-        listed_global_movement = {}
-        for key, item in self.global_movement.items():
-            listed_global_movement[key] = item.tolist()
-        self.result_info["global_movement"] = listed_global_movement
-
         self.result_info["regression_settings"] = self.regression_settings
-        self.result_info["global_movement_settings"] = self.global_movement_settings
-        self.result_info["flow_settings"] = self.flow_settings
 
         self.result_info["time"] = get_timestamp()
-        self.result_info["error_metric"] = self.error_metric
 
-        # all_keys = torch.cat((copy_keys, assert_keys, new_keys))
+        if not displacements_only:
+            self.result_info["points_used_in_gm"] = self.low_loss_points.tolist()
+            self.result_info["rel_displacements"] = self.rel_displacements.tolist()
+            self.result_info["affine_matrices"] = self.affine_matrices.tolist()
+            listed_global_movement = {}
+            for key, item in self.global_movement.items():
+                listed_global_movement[key] = item.tolist()
+            self.result_info["global_movement"] = listed_global_movement
+            self.result_info["global_movement_settings"] = self.global_movement_settings
+            self.result_info["flow_settings"] = self.flow_settings
+            self.result_info["error_metric"] = self.error_metric
+
+        rel_movement_keys = [
+            "points_used_in_gm",
+            "rel_displacements",
+            "affine_matrices",
+            "global_movement",
+            "global_movement_settings",
+            "flow_settings",
+            "error_metric",
+            "threshold_loss",
+        ]
         for key in new_keys:
+            if displacements_only and key in rel_movement_keys:
+                continue
             assert key in self.result_info
         return self.result_info

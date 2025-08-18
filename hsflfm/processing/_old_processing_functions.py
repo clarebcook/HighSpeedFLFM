@@ -1,5 +1,8 @@
+import xarray as xr
 import numpy as np
 import cv2
+
+from torch.optim import Adam
 
 import torch
 import torch.nn as nn
@@ -40,12 +43,8 @@ def world_frame_to_pixel(system, point, camera=2):
     return pixels
 
 
-# this will take in a set of approximately matching points
-# compute a height (based on an average)
-# and return the estimated pixel locations of a point
-# at that computed height
 def enforce_self_consistency(match_points, system):
-    # this could eventually be written to not necessarily
+    # this could eventually be written to not necessarilyl
     # maintain the location of the point in the reference image
     ref_camera = system.reference_camera
 
@@ -145,19 +144,6 @@ def gaussian_kernel(size: int, sigma: float):
     return kernel
 
 
-# define modules
-class gaussian_filter(nn.Module):
-    def __init__(self, size, sigma):
-        super().__init__()
-        filters = gaussian_kernel(size=size, sigma=sigma).view(1, 1, -1)
-        self.register_parameter(name="filters", param=torch.nn.Parameter(filters))
-
-    def forward(self, signal):
-        assert len(signal.shape) == 3
-        output = conv1d(signal, self.filters, padding="same")
-        return output
-
-
 # original_points and transformed_points should have same shape
 # B X num_points X 3
 # note that Pytorch and numpy do seem to give slightly different results for SVD
@@ -188,47 +174,6 @@ def estimate_affine_transform(original_points, transformed_points):
     return affine_matrices
 
 
-# matrices - [# points, 2 * num cameras, 3]
-# weights - [# points, 2 * num cameras, # frames]
-# measurements - [# points, 2 * num cameras, # frames]
-# function to solve a linear system of equations
-# given weights for each measurement
-def solve_weighted_system(matrices, weights, measurements):
-    num_points = measurements.shape[0]
-    num_frames = measurements.shape[2]
-
-    # first dupliacte matrices into [# points * # frames, 2 * num_cameras, 3]
-    matrices = matrices.unsqueeze(1).expand(
-        -1, weights.shape[2], -1, -1
-    )  # [# points, 2 * num cameras, # frames, 3]
-    matrices = matrices.reshape(-1, matrices.shape[2], matrices.shape[3])
-
-    # then expand weights into [# points * # frames, 2 * num_cameras] and expand into diagonal matrix
-    weights = weights.permute(0, 2, 1)  # [# points, # frames, 2 * num cameras]
-    weights = weights.reshape(
-        -1, weights.shape[2]
-    )  # [# points * # frames, 2 * num cameras]
-    weights = torch.einsum("ij,jk->ijk", weights, torch.eye(weights.shape[1]))
-
-    # reshape the measurements into [# points * # frames, 2 * num cameras, 1]
-    measurements = measurements.permute(
-        0, 2, 1
-    )  # [# points, # frames, 2 * num cameras]
-    measurements = measurements.reshape(
-        -1, measurements.shape[2], 1
-    )  # [# points * # frames, 2 * num cameras, 1]
-
-    multiplier = torch.linalg.inv(matrices.permute(0, 2, 1) @ weights @ matrices)
-    x_w = (
-        multiplier @ matrices.permute(0, 2, 1) @ weights @ measurements
-    )  # size [# points * # frames, 3, 1]
-    x_w = x_w.reshape(
-        num_points, num_frames, -1
-    )  # reshape back to [# points, # frames, 3]
-    x_w = x_w.permute(0, 2, 1)  # [# points, 3, # frames]
-    return x_w
-
-
 def get_global_movement(affine_matrices):
     global_movement = {}
     rotation_matrices = affine_matrices[:, :3, :3]
@@ -246,6 +191,62 @@ def get_global_movement(affine_matrices):
     global_movement["y"] = affine_matrices[:, 1, 3]
     global_movement["z"] = affine_matrices[:, 2, 3]
     return global_movement
+
+
+# define modules
+class gaussian_filter(nn.Module):
+    def __init__(self, size, sigma):
+        super().__init__()
+        filters = gaussian_kernel(size=size, sigma=sigma).view(1, 1, -1)
+        self.register_parameter(name="filters", param=torch.nn.Parameter(filters))
+
+    def forward(self, signal):
+        assert len(signal.shape) == 3
+        output = conv1d(signal, self.filters, padding="same")
+        return output
+
+
+class ModifiedHuber(nn.Module):
+    def __init__(self, base_delta):
+        super().__init__()
+        self.base_delta = base_delta
+
+    def forward(self, x, y, weights=None):
+        if weights is None:
+            weights = torch.ones_like(x)
+        base_delta = self.base_delta
+        r = torch.abs(x - y)
+        loss = torch.ones_like(r)
+        low_indices = r < weights * base_delta
+        high_indices = ~low_indices
+
+        loss[high_indices] = (
+            weights[high_indices]
+            * base_delta
+            * (r[high_indices] - 0.5 * weights[high_indices] * base_delta)
+        )
+        loss[low_indices] = 0.5 * (r[low_indices] ** 2)
+        return loss
+
+
+# coefficients should be #points x 6 x 3
+class ParallelLinear(nn.Module):
+    def __init__(self, coefficients, num_frames):
+        super().__init__()
+        num_points = coefficients.shape[0]
+        self.register_buffer("coefficients", coefficients)
+        self.register_parameter(
+            name="displacements",
+            param=torch.nn.Parameter(torch.randn((num_points, 3, num_frames))),
+        )
+
+    def forward(self):
+        predicted_flows = torch.bmm(self.coefficients, self.displacements)
+        return predicted_flows
+
+    def cuda(self):
+        self.coefficients.cuda()
+        return super().cuda()
 
 
 # this is not an efficient approach
@@ -344,6 +345,90 @@ def get_point_locations(system, match_points, *args, **kwargs):
     locations = np.sum(weighted_estimates, axis=0) / np.sum(weights, axis=0)
     locations[:, 2] *= -1
     return locations
+
+
+# 2025/02/19 this is experimental and not heavily in use yet
+# due to being very sensitive to noise
+def get_point_locations_iterative(
+    system,
+    match_points,
+    data_scale=1,
+    base_delta=0.1,
+    max_iterations=1000,
+    device="cpu",
+    lr=0.25,
+    include_report=False,
+):
+    # create the coefficients
+    num_cameras = len(match_points)
+    key0 = [i for i in match_points.keys()][0]
+    num_points = len(match_points[key0])
+    all_coeffs = torch.zeros(num_points, num_cameras * 2, 3)
+    values = torch.zeros(num_points, num_cameras * 2, 1)
+
+    for point_index in range(num_points):
+        for cam_num in range(num_cameras):
+            pixel_location = match_points[cam_num][point_index]
+            v0, v1 = system.get_shift_slopes(
+                cam_num, [pixel_location[0]], [pixel_location[1]]
+            )
+            s0, s1 = system.get_pixel_shifts(
+                cam_num, [pixel_location[0]], [pixel_location[1]]
+            )
+
+            all_coeffs[point_index, 2 * cam_num] = torch.asarray([1, 0, v0[0]])
+            all_coeffs[point_index, 2 * cam_num + 1] = torch.asarray([0, 1, v1[0]])
+            values[point_index, 2 * cam_num] = (
+                match_points[cam_num][point_index][0] + s0[0]
+            )
+            values[point_index, 2 * cam_num + 1] = (
+                match_points[cam_num][point_index][1] + s1[0]
+            )
+
+    iteration_losses = torch.zeros((num_points, max_iterations))
+    dev = torch.device(device)
+    model = ParallelLinear(all_coeffs, 1).to(dev)
+    huber_loss = ModifiedHuber(base_delta=base_delta * data_scale).to(dev)
+    optimizer = Adam(model.parameters(), lr=lr)
+
+    # intiailize
+    reference_camera = system.calib_manager.reference_camera
+    ref_index = torch.where(
+        torch.asarray([i for i in match_points.keys()]) == reference_camera
+    )[0][0]
+    model.displacements.data[:, 2] = 0
+    model.displacements.data[:, 0] = values[:, 2 * ref_index]
+    model.displacements.data[:, 1] = values[:, 2 * ref_index + 1]
+
+    for i in range(max_iterations):
+        optimizer.zero_grad()
+        predictions = model()
+        full_loss = huber_loss(predictions, values)
+        loss = torch.mean(full_loss)
+        loss.backward()
+        optimizer.step()
+        iteration_losses[:, i] = torch.mean(full_loss, axis=(1, 2))
+
+    locations = model.displacements.permute(0, 2, 1).cpu().detach() / data_scale
+
+    locations[:, :, 2] *= -1
+
+    pixel_size_m = system.calib_manager.pixel_size
+    magnification_dim0 = system.get_magnification_at_plane(
+        camera_number=system.reference_camera, plane_mm=0, dim=0
+    )
+    magnification_dim1 = system.get_magnification_at_plane(
+        camera_number=system.reference_camera, plane_mm=0, dim=1
+    )
+    locations[:, :, 0] = locations[:, :, 0] / magnification_dim0 * pixel_size_m * 1e3
+    locations[:, :, 1] = locations[:, :, 1] / magnification_dim1 * pixel_size_m * 1e3
+
+    locations = locations.squeeze().detach().cpu().numpy()
+
+    if not include_report:
+        return locations
+
+    return locations, iteration_losses, full_loss
 
 
 default_flow_parameters = {
