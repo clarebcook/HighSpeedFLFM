@@ -90,31 +90,6 @@ fig = go.Figure(
     ]
 )
 
-empty_refined_fig = go.Figure(
-    data=[
-        go.Mesh3d(
-            x=mesh_x,
-            y=mesh_y,
-            z=mesh_z,
-            i=mesh_faces[:, 0],
-            j=mesh_faces[:, 1],
-            k=mesh_faces[:, 2],
-            opacity=0.5,
-            color="lightgray",
-            name="Ant Mesh",
-        )
-    ],
-    layout=go.Layout(
-        title="Refined Alignment Output",
-        scene=dict(
-            xaxis_title="X",
-            yaxis_title="Y",
-            zaxis_title="Z",
-            aspectmode="data",
-        ),
-    )
-)
-
 
 # Layout with sliders, input boxes, and plot
 app.layout = html.Div(
@@ -285,7 +260,6 @@ app.layout = html.Div(
         html.Button("Done", id="done-button"),
         html.Button("Refine Alignment", id="refine-button", style={"marginLeft": "10px"}),
         html.Div(id="status-div"),
-        dcc.Graph(id="refined-plot", figure=empty_refined_fig, style={"height": "500px"}),
 
     ]
 )
@@ -308,15 +282,13 @@ def update_plot_from_slider(dx, dy, dz, droll, dpitch, dyaw, relayout_data):
     droll = droll * math.pi / 180
     dpitch = dpitch * math.pi / 180
     dyaw = dyaw * math.pi / 180
-    x, y, z, roll, pitch, yaw = rot_trans_from_matrix(np.linalg.inv(A_base))
+    x, y, z, roll, pitch, yaw = rot_trans_from_matrix(A_base)
     A_new = matrix_from_rot_trans(
         x + dx, y + dy, z + dz, roll + droll, pitch + dpitch, yaw + dyaw
     )
-
     mp2 = aligner.move_points_to_mesh(
-        np.linalg.inv(A_new), s_base, aligner.point_camera_locations
+        A_new, s_base, aligner.point_camera_locations
     )
-
     fig.update_traces(
         selector=dict(name="Dynamic Points"), x=mp2[:, 0], y=mp2[:, 1], z=mp2[:, 2]
     )
@@ -433,16 +405,18 @@ def sync_slider_input(
 
     # Case 1: refine button was clicked
     if triggered_id == "refine-button":
+        
         x0, y0, z0, roll0, pitch0, yaw0 = rot_trans_from_matrix(A_base)
         A_user = matrix_from_rot_trans(
             x0 + x_slider,
             y0 + y_slider,
             z0 + z_slider,
-            roll0 + roll_slider * math.pi / 180,
-            pitch0 + pitch_slider * math.pi / 180,
-            yaw0 + yaw_slider * math.pi / 180,
+            roll0 + math.radians(roll_slider),
+            pitch0 + math.radians(pitch_slider),
+            yaw0 + math.radians(yaw_slider),
         )
         
+
         A_refined, _ = aligner.refine_matrix(
             A_cam_ant_init=A_user,
             ant_scale_init=s_base,
@@ -464,10 +438,10 @@ def sync_slider_input(
         dyaw = (yaw - yaw0) * 180 / math.pi
 
         return (
-            dx, dy, dz,
-            droll, dpitch, dyaw,
-            dx, dy, dz,
-            droll, dpitch, dyaw,
+        dx, dy, dz,
+        droll, dpitch, dyaw,
+        dx, dy, dz,
+        droll, dpitch, dyaw,
         )
 
     # Case 2: input fields triggered the change
