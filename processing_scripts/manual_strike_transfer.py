@@ -32,11 +32,11 @@ import torch.nn.functional as F
 import qtpy.QtWidgets as QtWidgets
 import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
+from qtpy import uic
 
 import subprocess
 from pathlib import Path
 import json
-
 
 class FrameViewer(QtWidgets.QWidget):
     def __init__(self, specimen_numbers, heights, save_folder, demo_mode=False):
@@ -52,7 +52,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.demo_mode = demo_mode
 
         self.prepare_specimen()
-        self.initUI()
+        self.initUI() # Toggle for old gui
 
         self.dash_proc = None
 
@@ -241,8 +241,9 @@ class FrameViewer(QtWidgets.QWidget):
         self.prepare_specimen(base_alignment_values=base_alignment_values)
 
     def view_all_points(self):
-        self.mode = "view all"
+        self.mode = "view all"  
         self.update_frame()
+        self.update_button_states()
 
     def get_filename(self):
         # very hard-coded, we'll adjust this
@@ -447,6 +448,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.point_index = 0
         self.point_number = int(self.cycle_points[int(self.point_index)])
         self.update_frame()
+        self.update_button_states()
         return
 
     def add_missing_points(self):
@@ -458,11 +460,13 @@ class FrameViewer(QtWidgets.QWidget):
         self.mode = "add points"
         self.point_number = int(self.missing_points[int(self.point_index)])
         self.update_frame()
+        self.update_button_states()
         return
 
     def remove_points(self):
         self.mode = "remove points"
         self.update_frame()
+        self.update_button_states()
         return
 
     def skip_point(self):
@@ -574,7 +578,6 @@ class FrameViewer(QtWidgets.QWidget):
             start_strike = 1
         else:
             start_strike = None
-
         self.current_info = self.aligner.prepare_strike_results(
             self.strike_number, start_strike=start_strike, show=False
         )
@@ -991,7 +994,8 @@ if __name__ == "__main__":
         # ],
         # specimen_numbers=["20250226_OB_2"],  # , "20240503_OB_3"],
         # specimen_numbers=["20250429_OB_1"],
-        specimen_numbers=["20240506_OB_6"],
+        specimen_numbers=["20240502_OB_2"],
+        #specimen_numbers=["20240506_OB_6"],
         heights=heights,
         save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs",
         demo_mode=True,
