@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Form</class>
+ <widget class="QWidget" name="Form">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>576</width>
+    <height>548</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="8" column="1">
+    <widget class="QPushButton" name="load_manual_alignment_button">
+     <property name="text">
+      <string>Load Alignment Values</string>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="0">
+    <widget class="QPushButton" name="open_alignment_gui_button">
+     <property name="styleSheet">
+      <string notr="true">background-color: #FFA500; color: white; font-weight: bold;</string>
+     </property>
+     <property name="text">
+      <string>Open Manual Alignment Viewer</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="0">
+    <widget class="QPushButton" name="approve_button">
+     <property name="styleSheet">
+      <string notr="true">background-color: #2E8B57; color: white; font-weight: bold;</string>
+     </property>
+     <property name="text">
+      <string>Approve</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="1">
+    <widget class="QPushButton" name="rerun_button">
+     <property name="text">
+      <string>Re-run alignment</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QGraphicsView" name="graphics_view_static"/>
+   </item>
+   <item row="0" column="1">
+    <widget class="QLabel" name="demo_label">
+     <property name="text">
+      <string>TextLabel</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="0">
+    <widget class="QLabel" name="detail_label">
+     <property name="text">
+      <string>TextLabel</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="1">
+    <widget class="QLabel" name="height_label">
+     <property name="text">
+      <string>TextLabel</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0">
+    <widget class="QPushButton" name="full_view_button">
+     <property name="styleSheet">
+      <string notr="true">background-color: #6A5ACD;
+color: white;
+font-weight: bold;</string>
+     </property>
+     <property name="text">
+      <string>View All</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QGraphicsView" name="graphics_view"/>
+   </item>
+   <item row="4" column="0">
+    <widget class="QPushButton" name="add_missing_points_button">
+     <property name="styleSheet">
+      <string notr="true">background-color: #6A5ACD;
+color: white;
+font-weight: bold;</string>
+     </property>
+     <property name="text">
+      <string>Add Missing Points</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0">
+    <widget class="QPushButton" name="remove_points_button">
+     <property name="styleSheet">
+      <string notr="true">background-color: #6A5ACD;
+color: white;
+font-weight: bold;</string>
+     </property>
+     <property name="text">
+      <string>Remove Points</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="0">
+    <widget class="QPushButton" name="manual_button">
+     <property name="styleSheet">
+      <string notr="true">background-color: #6A5ACD;
+color: white;
+font-weight: bold;</string>
+     </property>
+     <property name="text">
+      <string>Start New Manual Point Transfer</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="1">
+    <widget class="QPushButton" name="manual_button2">
+     <property name="text">
+      <string>Continue Manual Point Transfer</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <widget class="QPushButton" name="skip_point_button">
+     <property name="text">
+      <string>Skip Point</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1">
+    <widget class="QSlider" name="slider">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
