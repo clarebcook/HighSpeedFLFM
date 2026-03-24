@@ -16,15 +16,24 @@ import numpy as np
 import qtpy.QtWidgets as QtWidgets
 import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--specimen_number",
+    default="20240506_OB_6",
+    help="Specimen identifier from data sheet",
+)
+parser.add_argument("--point_type", default="paint", help="'alignment' or 'paint'")
+args = parser.parse_args()
+specimen_number = args.specimen_number
+point_type = args.point_type
 
 # specify specimen name
-specimen_number = "20240506_OB_6"
 data_manager = MetadataManager(specimen_number=specimen_number)
 
 # specify if we're selecting alignment points or paint dots
-point_type = "alignment"
 type_list = ["alignment", "paint"]
-
 if point_type not in type_list:
     raise ValueError(f"point type must be one of {type_list}, not {point_type}")
 
@@ -132,8 +141,7 @@ class FrameViewer(QtWidgets.QWidget):
 
         self.update_frame()
 
-
-    # Overlaying circles on image   
+    # Overlaying circles on image
     def image_to_volume_pixel(self, point, camera_number, height):
         x_pix, y_pix = point[0], point[1]
         ss = self.system.get_shift_slopes(camera_number, [x_pix], [y_pix])
@@ -146,7 +154,6 @@ class FrameViewer(QtWidgets.QWidget):
         y_pix += ii[1][0]
 
         return x_pix, y_pix
-
 
     def update_frame(self):
         frame_data = self.volume[self.current_frame]
@@ -186,7 +193,6 @@ class FrameViewer(QtWidgets.QWidget):
         self.current_frame = value
         self.update_frame()
 
-        
     def on_double_click(self, event):
         pos = self.graphics_view.mapToScene(event.pos())
 
@@ -202,7 +208,7 @@ class FrameViewer(QtWidgets.QWidget):
             # get the normalized x and y values
             y_cam_norm, x_cam_norm = shift_map[x_vol_pix, y_vol_pix]
             # convert to pixels
-            x_cam_pix = (x_cam_norm + 1) / 2 * image_shape[0] 
+            x_cam_pix = (x_cam_norm + 1) / 2 * image_shape[0]
             y_cam_pix = (y_cam_norm + 1) / 2 * image_shape[1]
 
             values = [
