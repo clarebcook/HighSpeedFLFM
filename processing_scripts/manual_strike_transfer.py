@@ -32,6 +32,7 @@ import subprocess
 from pathlib import Path
 import json
 
+
 class FrameViewer(QtWidgets.QWidget):
     def __init__(self, specimen_numbers, heights, save_folder, demo_mode=False):
         super().__init__()
@@ -44,7 +45,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.demo_mode = demo_mode
 
         self.prepare_specimen()
-        self.initUI() # Toggle for old gui
+        # self.initUI()  # Toggle for old gui
 
         self.dash_proc = None
         self.mode = "view"
@@ -56,10 +57,14 @@ class FrameViewer(QtWidgets.QWidget):
         # Widget styling and status label
         if self.demo_mode:
             self.demo_label.setText("DEMO MODE: No data will be saved")
-            self.demo_label.setStyleSheet("color: orange; font-weight: bold; font-size: 14px;")
+            self.demo_label.setStyleSheet(
+                "color: orange; font-weight: bold; font-size: 14px;"
+            )
         else:
             self.demo_label.setText(f"Save Folder: {self.basesavefolder}")
-            self.demo_label.setStyleSheet("color: orange; font-weight: bold; font-size: 12px;")
+            self.demo_label.setStyleSheet(
+                "color: orange; font-weight: bold; font-size: 12px;"
+            )
 
         # Set up graphics scenes and events
         self.scene = QtWidgets.QGraphicsScene()
@@ -79,7 +84,9 @@ class FrameViewer(QtWidgets.QWidget):
         self.add_missing_points_button.clicked.connect(self.add_missing_points)
         self.remove_points_button.clicked.connect(self.remove_points)
         self.open_alignment_gui_button.clicked.connect(self.launch_manual_alignment)
-        self.load_manual_alignment_button.clicked.connect(self.load_manual_alignment_values)
+        self.load_manual_alignment_button.clicked.connect(
+            self.load_manual_alignment_values
+        )
         self.slider.valueChanged.connect(self.on_slider_change)
 
         # Style and button registry
@@ -106,6 +113,7 @@ class FrameViewer(QtWidgets.QWidget):
         specimen = self.cur_specimen_number
         man_align_path = Path(__file__).parent.resolve() / "manual_alignment_gui.py"
         self.dash_proc = subprocess.Popen(["python", str(man_align_path), specimen])
+
     def load_manual_alignment_values(self):
         output_path = Path(__file__).parent.resolve() / "alignment_output.json"
         if not output_path.exists():
@@ -130,9 +138,11 @@ class FrameViewer(QtWidgets.QWidget):
             "Give a warning that this will start the whole process over for this specimen"
         )
         self.prepare_specimen(base_alignment_values=base_alignment_values)
+
     def view_all_points(self):
-        self.mode = "view all"  
+        self.mode = "view all"
         self.update_frame()
+
     def get_filename(self):
         # very hard-coded, we'll adjust this
         folder = self.basesavefolder  # test_results_from_manual_strike_transfer_GUI"
@@ -143,6 +153,7 @@ class FrameViewer(QtWidgets.QWidget):
             os.mkdir(spec_folder)
         filename = spec_folder + f"/strike_{int(self.strike_number)}.json"
         return filename
+
     def approve(self):
         if self.mode == "manual align":
             print("cannot approve from this mode")
@@ -177,6 +188,7 @@ class FrameViewer(QtWidgets.QWidget):
         # # print("WARNING WARNING NOT SAVING")
         self.go_to_next_strike()
         self.update_frame()
+
     def recompute_matrix(self):
         key = 1
         prev_match_points = self.aligner.stored_match_points[key]
@@ -195,6 +207,7 @@ class FrameViewer(QtWidgets.QWidget):
             locations, prev_locations, allow_scale=False
         )
         self.strike_A_cam_ant = np.matmul(prev_matrix, A_cam2_to_cam1)
+
     def rerun(self):
         assert self.mode == "manual align"
         self.manually_modified = True
@@ -289,9 +302,11 @@ class FrameViewer(QtWidgets.QWidget):
         self.mode = "view"
         self.update_frame()
         return
+
     def continue_manual_transfer(self):
         self.mode = "manual align"
         self.update_frame()
+
     def prep_for_manual_alignment(self):
         self.mode = "manual align"
         # this can be cleaned up
@@ -309,6 +324,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.point_number = int(self.cycle_points[int(self.point_index)])
         self.update_frame()
         return
+
     def add_missing_points(self):
         if len(self.missing_points) < 1:
             print("no missing points!")
@@ -318,15 +334,18 @@ class FrameViewer(QtWidgets.QWidget):
         self.point_number = int(self.missing_points[int(self.point_index)])
         self.update_frame()
         return
+
     def remove_points(self):
         self.mode = "remove points"
         self.update_frame()
         return
+
     def skip_point(self):
         if self.mode not in ["add points", "manual align"]:
             print(f"not set up for skipping point in mode {self.mode}")
         self.point_index += 1
         self.go_to_next_point()
+
     def go_to_next_point(self):
         if self.mode == "manual align":
             self.point_index += 1
@@ -346,6 +365,7 @@ class FrameViewer(QtWidgets.QWidget):
                 return
         self.point_number = int(points[int(self.point_index)])
         self.update_frame()
+
     def go_to_next_strike(self):
         self.strike_index += 1
         if self.strike_index >= len(self.strike_numbers):
@@ -358,6 +378,7 @@ class FrameViewer(QtWidgets.QWidget):
             self.strike_index += 1
         print(self.cur_specimen_number, self.strike_numbers[self.strike_index])
         self.prepare_strike()
+
     def go_to_next_specimen(self):
         self.cur_specimen_index += 1
         if self.cur_specimen_index >= len(self.specimen_numbers):
@@ -365,6 +386,7 @@ class FrameViewer(QtWidgets.QWidget):
             self.close()
             return
         self.prepare_specimen()
+
     # we'll modify this...
     def load_past_information(self):
         return 0
@@ -387,6 +409,7 @@ class FrameViewer(QtWidgets.QWidget):
                     info["point_numbers"]
                 )
         return -1
+
     def prepare_specimen(self, base_alignment_values=None):
         self.cur_specimen_number = self.specimen_numbers[self.cur_specimen_index]
         self.aligner = Aligner(
@@ -398,7 +421,7 @@ class FrameViewer(QtWidgets.QWidget):
             base_alignment_values=base_alignment_values,
         )
         self.data_manager = MetadataManager(self.cur_specimen_number)
-        
+
         self.strike_numbers = np.sort(self.data_manager.strike_numbers)
         calibration_filename = self.data_manager.calibration_filename
         self.system = FLF_System(calibration_filename)
@@ -409,6 +432,7 @@ class FrameViewer(QtWidgets.QWidget):
         if self.strike_index == -1:
             self.go_to_next_specimen()
         self.prepare_strike()
+
     def prepare_strike(self):
         self.mode = "view"
         # perform the automatic alignment
@@ -453,7 +477,7 @@ class FrameViewer(QtWidgets.QWidget):
         # self.cur_specimen = info["specimen_number"]
         # self.cur_strike = info["strike_number"]
         images = self.data_manager.get_start_images(strike_number=self.strike_number)
-    
+
         self.image_shape = images[0].shape  # TODO: this is not good, do a different way
         volume, self.grid_volume = generate_ss_volume(
             self.data_manager.calibration_filename, images, self.heights
@@ -465,9 +489,9 @@ class FrameViewer(QtWidgets.QWidget):
         volume = volume.numpy()
         self.volume = volume
 
-        self.slider.setMinimum(0)
-        self.slider.setMaximum(self.volume.shape[0] - 1)
-        self.slider.setValue(0)
+        # self.slider.setMinimum(0)
+        # self.slider.setMaximum(self.volume.shape[0] - 1)
+        # self.slider.setValue(0)
 
         # get the existing match points for this strike
         self.match_points = info["match_points"]
@@ -479,6 +503,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.manually_modified = False
         self.manual_point_numbers = np.empty(0, dtype=int)
         self.manual_removed_points = np.empty(0, dtype=int)
+
     def update_frame(self):
         # can move this
         def image_to_volume_pixel(point, camera_number, height):
@@ -492,6 +517,7 @@ class FrameViewer(QtWidgets.QWidget):
             x_pix = x_pix + ii[0][0]
             y_pix = y_pix + ii[1][0]
             return x_pix, y_pix
+
         # Step 1: update scene with the volume
         frame_data = self.volume[self.current_frame]
         frame_image = QtGui.QImage(
@@ -588,10 +614,11 @@ class FrameViewer(QtWidgets.QWidget):
         self.detail_label.setText(
             f"{self.cur_specimen_number}, analyzing strike: {int(self.strike_number)}, mode: {self.mode}"
         )
-       
+
     def on_slider_change(self, value):
         self.current_frame = value
         self.update_frame()
+
     def on_double_click(self, event):
         if self.mode == "view" or self.mode == "view all":
             return
@@ -606,6 +633,7 @@ class FrameViewer(QtWidgets.QWidget):
         if self.mode == "remove points":
             self.remove_point_at_position(x_vol_pix, y_vol_pix)
         self.update_frame()
+
     def _volume_pixel_to_image(self, x_vol_pix, y_vol_pix, camera_number, frame=None):
         if frame is None:
             frame = self.current_frame
@@ -614,6 +642,7 @@ class FrameViewer(QtWidgets.QWidget):
         x_cam_pix = float((x_norm + 1) / 2 * self.image_shape[0])
         y_cam_pix = float((y_norm + 1) / 2 * self.image_shape[1])
         return x_cam_pix, y_cam_pix
+
     def remove_point_at_position(self, x_vol_pix, y_vol_pix):
         # identify the closest point
         cam_num = self.system.reference_camera
@@ -632,6 +661,7 @@ class FrameViewer(QtWidgets.QWidget):
         for key, item in self.match_points.items():
             self.match_points[key] = np.delete(item, index, axis=0)
         return
+
     def add_new_point(self, x_vol_pix, y_vol_pix):
         pixels = np.zeros((len(self.system.calib_manager.image_numbers), 2))
         for i, cam_num in enumerate(self.system.calib_manager.image_numbers):
@@ -696,6 +726,7 @@ class FrameViewer(QtWidgets.QWidget):
             )
         print("missing points: ", self.missing_points)
         print()
+
     def update_button_states(self):
         button_state_config = {
             "add points": {
@@ -757,14 +788,16 @@ class FrameViewer(QtWidgets.QWidget):
             button = self.buttons.get(button_name)
             if button:
                 button.setEnabled(enabled)
-    
+
         # Determine if this is the first strike
-        is_first_strike = (self.strike_index == 0)
+        is_first_strike = self.strike_index == 0
         # Check if manual point transfer already begun
-        has_started_manual_transfer = (len(self.manual_align_point_numbers) > 0)
+        has_started_manual_transfer = len(self.manual_align_point_numbers) > 0
         # Manual point transfer buttons
-        self.manual_button.setEnabled(not is_first_strike) 
-        self.manual_button2.setEnabled(not is_first_strike and has_started_manual_transfer) 
+        self.manual_button.setEnabled(not is_first_strike)
+        self.manual_button2.setEnabled(
+            not is_first_strike and has_started_manual_transfer
+        )
         # Manual alignment buttons
         self.load_manual_alignment_button.setEnabled(is_first_strike)
         self.open_alignment_gui_button.setEnabled(is_first_strike)
@@ -783,6 +816,7 @@ class FrameViewer(QtWidgets.QWidget):
             self.dash_proc.kill()
         event.accept()
 
+
 ## Change Settings Here
 if __name__ == "__main__":
     heights = torch.linspace(-3, 3, 200, dtype=torch.float32)
@@ -794,8 +828,11 @@ if __name__ == "__main__":
         # ],
         # specimen_numbers=["20250226_OB_2"],  # , "20240503_OB_3"],
         # specimen_numbers=["20250429_OB_1"],
-        #specimen_numbers=["20240502_OB_2"],
-        specimen_numbers=["20240506_OB_6"],
+        # specimen_numbers=["20240502_OB_2"],
+        # "20240506_OB_6"
+        # "20240502_OB_1"
+        # "20240503_OB_3" is an example where manual intervention is required 
+        specimen_numbers=["20240503_OB_3"],
         heights=heights,
         save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs",
         demo_mode=True,

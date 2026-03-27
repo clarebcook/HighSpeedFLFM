@@ -18,18 +18,17 @@ This folder contains GUI tools for managing post-calibration point identificatio
 
 ### 1. Annotate Initial Points
 
-Run the following once per specimen to manually label points for alignment or painted markers:
+Run the following twice per specimen to manually label points for alignment and painted markers (points to track):
 
 ```bash
-python match_points_gui.py
+python match_points_gui.py --specimen_number 20240506_OB_6 --point_type alignment
 ```
 
-- Toggle point mode around line 25:
-  ```python
-  point_type = "alignment"  # or "paint"
-  ```
-- Points are saved automatically per camera.
+- The ``specimen_number`` should be a unique identifier included in the dataset Excel sheet - defaults to ``20240506_OB_6``
+- ``point_type`` should be ``alignment`` or ``paint``. This specifies whether the selected points are the fiducial points on the ant head used for coarse alignment, or the points to be tracked during SDV. 
+p Points are saved automatically per camera.
 - Run **twice**: once for `"alignment"`, and once for `"paint"`.
+- By default, points are saved in the "Alignment Data Folder" specified in the dataset Excel sheet. 
 
 ---
 
@@ -59,7 +58,7 @@ demo_mode = False  # Set to True to disable file saving
 If the 3D point alignment looks incorrect:
 
 - Click **“Open Manual Alignment Viewer”** in the GUI.
-- This launches `manual_alignment_gui.py`, which opens a browser-based 3D Dash viewer.
+- This launches `manual_alignment_gui.py`, which opens a browser-based 3D Dash viewer. If this does not open automatically, check the terminal where the GUI was launched - there should be an address, which copied to a browser manually. This may take several seconds.
 - Use the sliders to adjust the alignment of the dynamic points, once finished click 'done' to export. 
 
 ---

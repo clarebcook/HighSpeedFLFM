@@ -51,7 +51,7 @@ if point_type == "alignment":
         "eye_tipe",
         "under_eye_ridge",
         "ridge_top",
-        "eye_back_tip",
+        # "eye_back_tip", # 20260327 not using this point anymore
     ]
 elif point_type == "paint":
     name = "match_points"
@@ -224,6 +224,8 @@ class FrameViewer(QtWidgets.QWidget):
 
         self.update_frame()
 
+    def closeEvent(self, event):
+        event.accept()
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
