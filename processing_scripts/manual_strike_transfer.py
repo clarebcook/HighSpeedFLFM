@@ -45,7 +45,6 @@ class FrameViewer(QtWidgets.QWidget):
         self.demo_mode = demo_mode
 
         self.prepare_specimen()
-        # self.initUI()  # Toggle for old gui
 
         self.dash_proc = None
         self.mode = "view"
@@ -488,10 +487,6 @@ class FrameViewer(QtWidgets.QWidget):
         volume = volume.to(torch.uint8)
         volume = volume.numpy()
         self.volume = volume
-
-        # self.slider.setMinimum(0)
-        # self.slider.setMaximum(self.volume.shape[0] - 1)
-        # self.slider.setValue(0)
 
         # get the existing match points for this strike
         self.match_points = info["match_points"]
