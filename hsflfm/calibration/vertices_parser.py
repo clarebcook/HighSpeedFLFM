@@ -203,15 +203,18 @@ class SystemVertexParser:
             plt.figure()
             plt.imshow(binary)
             plt.title("Binary image")
+
             plt.figure()
             plt.imshow(edges)
-            plt.title("Detected Lines")
+            plt.title("Detected Edges")
+
             display_with_lines(
                 image,
                 lines_thresh0.squeeze(),
                 xlength=image.shape[1],
                 ylength=image.shape[0],
                 display_downsample=self.display_downsample,
+                title="All possible vertical lines \n (lines with enough edge points given length of vertical side)",
             )
 
             display_with_lines(
@@ -220,6 +223,7 @@ class SystemVertexParser:
                 xlength=image.shape[1],
                 ylength=image.shape[0],
                 display_downsample=self.display_downsample,
+                title="All possible horizontal lines \n (lines with enough edge points given length of horizontal side)",
             )
 
         if show:
@@ -232,7 +236,7 @@ class SystemVertexParser:
                 all_lines,
                 xlength=image.shape[1],
                 ylength=image.shape[0],
-                title=f"expanded lines for camera {camera_number}, plane {plane_number}",
+                title=f"Detected lines for camera {camera_number}, plane {plane_number} \n displayed over image",
                 display_downsample=self.display_downsample,
             )
             display_with_lines(
@@ -240,7 +244,7 @@ class SystemVertexParser:
                 all_lines,
                 xlength=image.shape[1],
                 ylength=image.shape[0],
-                title=f"expanded lines for camera {camera_number}, plane {plane_number}",
+                title=f"Detected lines for camera {camera_number}, plane {plane_number} \n displayed alone",
                 display_downsample=self.display_downsample,
             )
 
@@ -351,7 +355,7 @@ class SystemVertexParser:
                 f"Lines have not been found for cam {camera_number}, plane {plane_number}"
             )
 
-        approx_points = find_approx_points(lines_dict)
+        approx_points = find_approx_points(lines_dict).squeeze()
         plane_index = self.plane_index(plane_number)
         image = self.all_images[plane_index][camera_number]
 
@@ -439,7 +443,7 @@ class SystemVertexParser:
             for key2, point_list in item.items():
                 point_list2 = []
                 for row in point_list:
-                    if np.isnan(row).any():
+                    if np.isnan(row).any() or np.isinf(row).any():
                         continue
                     point_list2.append(row)
 

@@ -29,7 +29,6 @@ load_value_list = [
     "average_flow_sq",
     "mesh_points",
     "strike_center_indices",
-    "mandible_start_frames",
     "mandible_order",
     "max_z_velocity",
 ]
@@ -238,10 +237,7 @@ class BulkAnalyzer:
 
             # get mandible information
             metadata_manager = MetadataManager(result_dict["specimen_number"])
-            start_frames = metadata_manager.mandible_start_frames(
-                result_dict["strike_number"]
-            )
-            start_frames = torch.asarray([start_frames] * num_points)
+            
             mandible_order = metadata_manager.mandible_order(
                 result_dict["strike_number"]
             )
@@ -262,7 +258,6 @@ class BulkAnalyzer:
                 average_flow_sq,
                 start_locations_mesh,
                 torch.asarray([center_index] * num_points),
-                start_frames,
                 mandible_order,
                 max_velocities,
             ]

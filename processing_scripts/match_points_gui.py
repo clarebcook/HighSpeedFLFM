@@ -69,7 +69,7 @@ image_shape = info_manager.image_shape
 
 # load in the images
 if point_type == "alignment":
-    images = data_manager.light_calibration_images
+    images = data_manager.oblique_alignment_images
 elif point_type == "paint":
     images = data_manager.get_start_images(strike_number=1)
 
@@ -226,6 +226,7 @@ class FrameViewer(QtWidgets.QWidget):
 
     def closeEvent(self, event):
         event.accept()
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
