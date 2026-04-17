@@ -6,50 +6,49 @@ from hsflfm.util import load_split_video, load_image_set
 import numpy as np
 import pandas as pd
 
-metadata = pd.read_excel(home_directory + "/" + metadata_filename)
+metadata = pd.read_csv(home_directory + "/" + metadata_filename)
 
 
 class MetadataManager:
+    # the code treats each alignment setup as a different specimen
+    # in the main dataset, only one specimen, "20240418_OB_1" has two alignment setups
     def __init__(self, specimen_number):
-        self.specimen_data = metadata.loc[metadata["Specimen #"] == specimen_number]
+        self.alignment_tag = specimen_number
+        self.specimen_data = metadata.loc[metadata["Alignment Tag"] == specimen_number]
+        if len(self.specimen_data) == 0:
+            raise ValueError(f"Specimen number {specimen_number} not found in metadata")
 
     @staticmethod
     def all_specimen_numbers():
-        return np.unique(metadata["Specimen #"].values)
+        return np.unique(metadata["Alignment Tag"].values)
 
     @property
     def strike_numbers(self):
         return np.sort(self.specimen_data["Strike #"].values)
 
     @property
-    def calibration_folder(self):
-        folder = self.specimen_data["Calibration Folder"].values[0]
-        folder = str(folder)
-        return data_folder + '/' + folder
+    def main_folder(self):
+        main_folder = self.specimen_data["Main Folder"].values[0]
+        return data_folder + "/" + str(main_folder)
 
     @property
     def video_folder(self):
-        folder = self.specimen_data["Video Folder"].values[0]
-        folder = str(folder)
-        return data_folder + '/' + folder
+        folder = self.main_folder + f"/{self.alignment_tag}"
+        return folder
+
+    # where the calibration images are stored
+    @property
+    def calibration_folder(self):
+        return self.main_folder + "/calibration_images"
 
     @property
     def calibration_filename(self):
-        filename = self.calibration_folder + "/" + "calibration_information"
-        filename = str(filename)
+        filename = self.main_folder + "/calibration_information.json"
         return filename
 
     @property
     def alignment_folder(self):
-        folder = self.specimen_data["Alignment Data Folder"].values[0]
-        folder = str(folder)
-        return data_folder + '/' + folder
-
-    @property
-    def alignment_image_folder(self):
-        folder = self.specimen_data["Alignment Image Folder"].values[0]
-        folder = str(folder)
-        return data_folder + '/' + folder
+        return self.video_folder + "/alignment_files"
 
     def get_strike_data(self, strike_number):
         return self.specimen_data.loc[self.specimen_data["Strike #"] == strike_number]
@@ -57,43 +56,40 @@ class MetadataManager:
     def video_filename(self, strike_number):
         video_folder = self.video_folder
         strike_data = self.get_strike_data(strike_number)
-        video_filename = strike_data["VideoFileName"].values[0]
+        video_filename = strike_data["Video Filename"].values[0]
         return video_folder + "/" + video_filename
 
     @property
     def match_points_filename(self):
         folder = self.alignment_folder
-        return folder + "/match_points"
+        return folder + "/match_points.json"
 
     @property
     def alignment_points_filename(self):
         folder = self.alignment_folder
-        return folder + "/alignment_points"
+        return folder + "/alignment_points.json"
 
     @property
-    def light_calibration_filename(self):
-        folder = self.alignment_image_folder
-        folder = str(folder)
-        filename = self.specimen_data["Alignment \n(side light)\n FileName"].values[0]
+    def oblique_alignment_filename(self):
+        folder = self.alignment_folder
+        filename = f"{self.alignment_tag}_oblique_alignment.tiff"
         return folder + "/" + filename
 
     @property
-    def dark_calibration_filename(self):
-        folder = self.alignment_image_folder
-        filename = self.specimen_data["Alignment \n(ring light)\nFileName"].values[0]
+    def alignment_image_filename(self):
+        folder = self.alignment_folder
+        filename = f"{self.alignment_tag}_alignment.tiff"
         return folder + "/" + filename
 
-    # this might not be the best place for these functions
-    # but it's fine for now
     @property
-    def light_calibration_images(self):
-        filename = self.light_calibration_filename
+    def oblique_alignment_images(self):
+        filename = self.oblique_alignment_filename
         images = load_image_set(filename, self.calibration_filename)
         return images
 
     @property
-    def dark_calibration_images(self):
-        filename = self.dark_calibration_filename
+    def alignment_images(self):
+        filename = self.alignment_image_filename
         images = load_image_set(filename, self.calibration_filename)
         return images
 
@@ -106,7 +102,7 @@ class MetadataManager:
         for key, video in gray_videos.items():
             if len(video.shape) > 3:
                 video = np.mean(video, axis=-1)
-            # don't use the first frame because they're sometiems weird
+            # don't use the first frame because they're sometimes weird
             frame = np.mean(video[1:], axis=0)
             images[key] = frame
         return images
@@ -115,25 +111,5 @@ class MetadataManager:
     # but this is okay for now
     def mandible_order(self, strike_number):
         strike_data = self.get_strike_data(strike_number)
-        key = "Mandible Order \n(Left, Right, Simultaneous)"
+        key = "Mandible Order"
         return strike_data[key].values[0].strip()
-
-    # these will always be returned as L, R
-    def mandible_start_frames(self, strike_number):
-        strike_data = self.get_strike_data(strike_number)
-        key0 = "Mandible 1 \nframe start / Strike Start"
-        key1 = "Mandible 2 frame start"
-
-        f0 = strike_data[key0].values[0]
-        f1 = strike_data[key1].values[0]
-
-        # TODO: edit this once we know how to handle "S"
-        order = self.mandible_order(strike_number)
-        if order in np.asarray(["L", "L only", "S"]):
-            frames = (f0, f1)
-        elif order in np.asarray(["R", "R only"]):
-            frames = (f1, f0)
-        else:
-            raise ValueError(f"{order} not an expected order")
-
-        return frames
