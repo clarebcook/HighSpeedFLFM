@@ -23,3 +23,10 @@ conda develop .
 Note that using `conda develop` requires `conda-build` to be installed. This can be done with: 
 ```
 conda install conda-build
+
+
+## Use with existing dataset 
+FILL IN 
+
+## Use with new datasets 
+FILL IN 
