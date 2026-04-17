@@ -227,7 +227,6 @@ class FrameViewer(QtWidgets.QWidget):
     def closeEvent(self, event):
         event.accept()
 
-
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     viewer = FrameViewer(
