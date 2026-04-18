@@ -1,17 +1,13 @@
 # This GUI is used to manually match points between the three multi-perspective images
-# 2024/11/12
-# more cleaning needs to be done before this should be used as more than a demo script
 
 # import
+from hsflfm.config import home_directory
 from hsflfm.util import MetadataManager, load_dictionary, save_dictionary
 from hsflfm.calibration import FLF_System, generate_ss_volume
 
 import os
-import cv2
 import sys
 import torch
-import torch.nn.functional as F
-import numpy as np
 
 import qtpy.QtWidgets as QtWidgets
 import qtpy.QtGui as QtGui
@@ -25,9 +21,32 @@ parser.add_argument(
     help="Specimen identifier from data sheet",
 )
 parser.add_argument("--point_type", default="paint", help="'alignment' or 'paint'")
+parser.add_argument(
+    "--demo",
+    help="Whether or not to save selected points",
+    action="store_true",
+)
+parser.add_argument(
+    "--exclude_prior_points",
+    help="Whether to exclude previously saved points",
+    action="store_true",
+)
 args = parser.parse_args()
 specimen_number = args.specimen_number
 point_type = args.point_type
+demo = args.demo
+exclude_prior_points = args.exclude_prior_points
+
+
+print(
+    "demo",
+    demo,
+    type(demo),
+    "exclude_prior_points",
+    exclude_prior_points,
+    type(exclude_prior_points),
+)
+
 
 # specify specimen name
 data_manager = MetadataManager(specimen_number=specimen_number)
@@ -37,15 +56,8 @@ type_list = ["alignment", "paint"]
 if point_type not in type_list:
     raise ValueError(f"point type must be one of {type_list}, not {point_type}")
 
-# specify where this will be saved
-save_folder = data_manager.alignment_folder
-# right now, we anticipate these have already been made
-assert os.path.exists(save_folder)
-# if not os.path.exists(save_folder):
-#    os.mkdir(save_folder)
-
 if point_type == "alignment":
-    name = "alignment_points"
+    save_name = data_manager.alignment_points_filename
     point_types = [
         "head_base",
         "eye_tipe",
@@ -54,10 +66,8 @@ if point_type == "alignment":
         # "eye_back_tip", # 20260327 not using this point anymore
     ]
 elif point_type == "paint":
-    name = "match_points"
+    save_name = data_manager.match_points_filename
     point_types = None
-# adding demo right now to avoid overwriting past data
-save_name = save_folder + f"/{name}"  # + "_demo"
 
 # Load in Calibration settings and initialize info_manager and image_shape
 calibration_filename = data_manager.calibration_filename
@@ -103,7 +113,7 @@ class FrameViewer(QtWidgets.QWidget):
         self.system = system
         self.info_manager = system.calib_manager
         camera_numbers = info_manager.image_numbers
-        if os.path.exists(save_name):
+        if os.path.exists(save_name) and not exclude_prior_points:
             self.match_points = load_dictionary(save_name)
         else:
             self.match_points = {}
@@ -112,13 +122,38 @@ class FrameViewer(QtWidgets.QWidget):
 
         self.initUI()
 
+    def set_instruction(self):
+        base_text = "Double-click to select a point. "
+
+        if self.point_types is not None:
+            if self.point_number >= len(self.point_types):
+                base_text = base_text + "All points collected. Close the window."
+            else:
+                base_text = (
+                    base_text
+                    + f". Please select point: {self.point_types[self.point_number]}"
+                )
+
+        if demo:
+            base_text += " \n DEMO MODE: Points will not be saved. "
+        else:
+            save_string = os.path.relpath(self.save_name, home_directory)
+            base_text += f"\n Points will be saved to home_directory + {save_string}"
+
+        if exclude_prior_points and not demo:
+            base_text = (
+                base_text
+                + "\n prior points not included, CLOSE BEFORE CLICKING TO AVOID OVERWRITING"
+            )
+
+        self.instruction_label.setText(base_text)
+
     def initUI(self):
         layout = QtWidgets.QVBoxLayout()
 
         self.instruction_label = QtWidgets.QLabel()
         layout.addWidget(self.instruction_label)
-        if self.point_types is not None:
-            self.instruction_label.setText(self.point_types[self.point_number])
+        self.set_instruction()
 
         self.graphics_view = QtWidgets.QGraphicsView()
         self.scene = QtWidgets.QGraphicsScene()
@@ -182,7 +217,7 @@ class FrameViewer(QtWidgets.QWidget):
                 # Convert image space pixel coordinates to volume-space pixel coordinates at current height
                 x_pix, y_pix = self.image_to_volume_pixel(point, first_cam_num, z_mm)
                 # Draw a circle on top of the current image at collected coords
-                self.scene.addEllipse(y_pix, x_pix, 2.0, 2.0, QtGui.QPen(Qt.red))
+                self.scene.addEllipse(y_pix, x_pix, 1.0, 1.0, QtGui.QPen(Qt.white))
 
         self.height_label.setText(f"height: {self.heights[self.current_frame]} mm")
 
@@ -216,16 +251,17 @@ class FrameViewer(QtWidgets.QWidget):
             ]
             self.match_points[cam_num].append(values)
 
-        save_dictionary(self.match_points, self.save_name)
+        if not demo:
+            save_dictionary(self.match_points, self.save_name)
 
         self.point_number = self.point_number + 1
-        if self.point_types is not None:
-            self.instruction_label.setText(self.point_types[self.point_number])
+        self.set_instruction()
 
         self.update_frame()
 
     def closeEvent(self, event):
         event.accept()
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
