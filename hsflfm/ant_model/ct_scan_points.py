@@ -5,6 +5,7 @@ from hsflfm.util import estimate_plane, project_point_on_plane, matmul
 import numpy as np
 
 ### coordinates of important points extracted from the CT scan STL file
+# using Fusion 360 
 
 # these are (x, y, z) points defining a shape containing stable points
 stable_vertices_mesh = [
