@@ -350,7 +350,7 @@ class StrikeProcessor:
         self.result_info["predicted_flow_vectors"] = self.all_flow_predictions.tolist()
         self.result_info["camera_weights"] = self.all_weights.tolist()
         self.result_info["regression_settings"] = self.regression_settings
-        self.result_info["iteration_losses"] = self.all_iteration_losses.tolist()
+        # self.result_info["iteration_losses"] = self.all_iteration_losses.tolist()
         self.result_info["camera_point_displacements"] = self.all_displacements.tolist()
         self.result_info["camera_start_locations"] = self.start_positions.tolist()
         self.result_info["regression_settings"] = self.regression_settings
