@@ -53,6 +53,9 @@ class MetadataManager:
     def get_strike_data(self, strike_number):
         return self.specimen_data.loc[self.specimen_data["Strike #"] == strike_number]
 
+    def get_frame_rate(self, strike_number):
+        return self.get_strike_data(strike_number)["Frame Rate"].values[0]
+
     def video_filename(self, strike_number):
         video_folder = self.video_folder
         strike_data = self.get_strike_data(strike_number)

@@ -1,11 +1,6 @@
-# this script can be used to manually match points between ant strikes
-# to supplement points that are automatically matched
-# 2024/12/03 this is heavily copied from "match_points_gui.py"
-# which is easier for now, but these could be combined in the future
-# This GUI is used to manually match points between the three multi-perspective images
-# 2024/11/12
-# more cleaning needs to be done before this should be used as more than a demo script
-# import
+# this script can be used to allow manual intervention
+# when matching points between ant strikes
+
 from hsflfm.util import (
     MetadataManager,
     load_dictionary,
@@ -16,14 +11,13 @@ from hsflfm.util import (
 from hsflfm.calibration import (
     FLF_System,
     generate_ss_volume,
-)  # generate_normalized_shift_maps
-from hsflfm.analysis import ResultManager
+)
+from hsflfm.config import home_directory
 from hsflfm.processing import Aligner, get_point_locations, world_frame_to_pixel
 import sys
 import torch
 import numpy as np
 import os
-import torch.nn.functional as F
 import qtpy.QtWidgets as QtWidgets
 import qtpy.QtGui as QtGui
 from qtpy.QtCore import Qt
@@ -60,7 +54,8 @@ class FrameViewer(QtWidgets.QWidget):
                 "color: orange; font-weight: bold; font-size: 14px;"
             )
         else:
-            self.demo_label.setText(f"Save Folder: {self.basesavefolder}")
+            t = os.path.relpath(self.basesavefolder, home_directory)
+            self.demo_label.setText(f"Save Folder: home_directory + {t}")
             self.demo_label.setStyleSheet(
                 "color: orange; font-weight: bold; font-size: 12px;"
             )
@@ -826,11 +821,11 @@ if __name__ == "__main__":
         # specimen_numbers=["20240502_OB_2"],
         # "20240506_OB_6"
         # "20240502_OB_1"
-        # "20240503_OB_3" is an example where manual intervention is required 
+        # "20240503_OB_3" is an example where manual intervention is required
         specimen_numbers=["20240503_OB_3"],
         heights=heights,
-        save_folder="/Users/abhin/Documents/Graduate School/Patek Research Docs/Ant Strike Outputs",
-        demo_mode=True,
+        save_folder=home_directory + "/results/example_alignment_results",
+        demo_mode=False,
     )
     viewer.show()
     sys.exit(app.exec_())
