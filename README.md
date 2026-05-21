@@ -1,6 +1,6 @@
 ## Ultra-High Speed Fourier Light Field Mesoscope 
 
-This will contain instructions for using the code repository associated withour new ultra-high speed fourier light field mesoscope for imaging snapping trap-jaw ants, currently in submission. 
+This repostiroy contains all the code associated with our new device, Ultrafast Light field Tracking and Recording Apparatus for Surface Deformation Velocimetry (ULTRA-SDV), which is described in a manuscript currently under review. 
  
 ## Environment and Installation 
 
