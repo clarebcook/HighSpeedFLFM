@@ -2,13 +2,13 @@
 
 This folder contains GUI tools for managing post-calibration point identification, alignment, and transfer across multiple ant strike recordings.
 
-> **Note:** Make sure the system calibration workflow is completed before using these scripts.
+> **Note:** For new datasets, make sure the system calibration workflow is completed before using these scripts. For use with the datasets associated with our ULTRA-SDV manuscript, calibration is already completed. 
 
 ---
 
 ## Contents
 
-- `match_points_gui.py`: Annotate initial paint or alignment points, to match points between the perspective images.
+- `match_points_gui.py`: Annotate initial painted or alignment (fiducial) points, to match points between the perspective images.
 - `manual_strike_transfer.py`: GUI to transfer and verify points across strikes, correct misaligned points.
 - `manual_alignment_gui.py`: 3D viewer for global alignment with ant exoskeleton.
 - `process_from_pre_alignment.ipynb`: Notebook to run 3D analysis following alignment to ant coordinate frame. 
@@ -19,7 +19,7 @@ This folder contains GUI tools for managing post-calibration point identificatio
 ## Suggested Workflow
 
 For ant videos:
-1. Run `match_points_gui.py` to collect alignment and paint points.
+1. Run `match_points_gui.py` to manually match alignment and painted points between the first frame of the perspective videos.
 2. Run `manual_strike_transfer.py` for the specimen.
 2a. From this GUI, launch the manual alignment GUI to ensure matched points are correctly aligned to the 3D ant model. 
 2b. Use the GUI to:
