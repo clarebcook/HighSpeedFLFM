@@ -7,7 +7,7 @@ from hsflfm.ant_model import (
 from hsflfm.config import home_directory
 from .result_analyzer import ResultManager
 from hsflfm.processing import world_frame_to_pixel
-from hsflfm.util import load_split_video, MetadataManager
+from hsflfm.util import load_split_video, MetadataManager, matmul 
 from hsflfm.calibration import FLF_System
 
 import trimesh
@@ -270,6 +270,58 @@ class ResultPlotter:
         plt.ylabel("Displacement (um)")
         return fig
 
+    def plot_global_movement(self): 
+        gb = self.result_info["global_movement"]
+        fig, axes = plt.subplots(2, 1)
+
+        strike_center = self.result_manager.strike_center_index() 
+        start = strike_center - 11
+        assert start >= 0 
+        strike_center = strike_center - start 
+        end = start + 90
+
+        print(start, end) 
+
+        for key in ["y", "x", "z", "pitch", "roll", "yaw"]: #gb.items():
+            item = gb[key]
+            item = np.asarray(item)[start:end]
+            time = np.arange(len(item)) / 1e5 * 1e3
+            if key in ["x", "y", "z"]:
+                ax = axes[0]
+                scale = 1e3
+            else:
+                ax = axes[1]
+                scale = 180 / np.pi
+            if key == "x":
+                label = "y"
+            elif key == "y":
+                label = "x"
+                item = -item
+            elif key == "roll":
+                label = "pitch"
+            elif key == "pitch":
+                label = "roll"
+                item = -item
+            else:
+                label = key
+            ax.plot(time, item * scale, label=label, linewidth=3)
+        
+        axes[0].axvline(x=time[strike_center + 5], color="black", linestyle="--",)
+                        #label='t={:.2f} ms'.format(time[strike_center + 5]))
+        axes[1].axvline(x=time[strike_center + 5], color="black", linestyle="--")
+
+        axes[0].legend()
+        axes[1].legend()
+        axes[0].set_xticks([])
+        axes[0].set_ylabel("Translation (um)")
+        axes[1].set_xlabel("Time (ms)")
+
+        axes[1].set_ylabel("Rotation (deg)")
+        axes[0].set_ylim(-25, 80)
+        axes[1].set_ylim(-2.5, 4.5)
+
+        return fig 
+
     def make_point_track_video(
         self,
         cam_num=2,
@@ -379,12 +431,14 @@ class ResultPlotter:
         movement_mag=15,
         crop_buffer=[75, 10, 25, 25],
         cmap=matplotlib.cm.turbo,
+        relative_displacements=True, 
         frames=None,
         force_arrow_after_strike=True,
         return_crops=False,
         white_buffer=5,
         good_only=True,
         clim=None, 
+        zlim=None, 
     ):
         if self.videos is None:
             self.load_video()
@@ -394,17 +448,35 @@ class ResultPlotter:
             frames = torch.arange(self.videos[cam_num].shape[0])
 
         rel_displacements = torch.asarray(self.result_info["rel_displacements"])
+
         affine_matrices = torch.asarray(self.result_info["affine_matrices"])
         A_cam_to_ant_start = torch.asarray(self.result_info["A_cam_to_ant_start"])
         match_points = torch.asarray(self.result_info["match_points"][cam_num])
+
+        if not relative_displacements:
+            matrix = A_cam_to_ant_start 
+            cpd = torch.asarray(self.result_info["camera_point_displacements"])[:, frames]
+            cpl = cpd + torch.asarray(self.result_info["camera_start_locations"])[:, None, :]
+            cpl_temp = cpl.reshape(-1, cpl.shape[-1])
+            ant_locations = matmul(matrix, cpl_temp).reshape(cpl.shape)
+            ant_start_locations = matmul(matrix, torch.asarray(self.result_info["camera_start_locations"]))
+            ant_displacements = ant_locations - ant_start_locations[:, None]
+            displacements = ant_displacements
+        else: 
+            displacements = rel_displacements[:, frames]
 
         if good_only and self.good_indices is not None:
             idx = self.good_indices
         else:
             idx = torch.arange(rel_displacements.shape[0])
 
-        max_z_disp = torch.max(rel_displacements[idx, :, 2])
-        min_z_disp = torch.min(rel_displacements[idx, :, 2])
+        if zlim is None:
+            max_z_disp = torch.max(displacements[idx, :, 2])
+            min_z_disp = torch.min(displacements[idx, :, 2])
+        else:
+            max_z_disp = zlim[1]
+            min_z_disp = zlim[0]
+
 
         flow = torch.asarray(self.result_info["flow_vectors"])
         flowx = flow[:, 2 * cam_num]
@@ -505,7 +577,9 @@ class ResultPlotter:
                 if good_only and self.good_indices is not None:
                     if point_index not in self.good_indices:
                         continue
-                disp = rel_displacements[point_index, frame_num]
+
+                disp = displacements[point_index, i]
+
                 z_disp = disp[2]
 
                 norm_z_disp = (z_disp - min_z_disp) / (max_z_disp - min_z_disp)
