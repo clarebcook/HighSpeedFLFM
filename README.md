@@ -32,7 +32,7 @@ https://drive.google.com/drive/folders/1ugZwc9GC4XBzgeqevQwpPMVN0A26MxRv?usp=dri
 
 The data should be downloaded and placed in a folder within the user's directory. `home_directory` in `hsflfm/config.py` should then be set to this folder. 
 
-We will add additional information here on organizing new datasets for use with this repository. 
+We will add additional information here on how to organize future datasets for use with this repository. 
 
 ## Navigating repository
-This folder contains three main folders of scripts: 'calibration_scripts', 'processing_scripts', and 'analysis_scripts'. Each folder contains an individual README describing how to use the scripts. 
+This folder contains three subfolders of scripts: 'calibration_scripts', 'processing_scripts', and 'analysis_scripts'. Each folder contains an individual README describing how to use the scripts. 
