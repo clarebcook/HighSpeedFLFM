@@ -1,4 +1,4 @@
-## Ultra-High Speed Fourier Light Field Mesoscope 
+## Megahertz Fourier Light Field Microscopy  
 
 This repository contains all the code associated with our new device, Ultrafast Light field Tracking and Recording Apparatus for Surface Deformation Velocimetry (ULTRA-SDV), which is described in a manuscript currently under review. 
 
