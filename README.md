@@ -28,7 +28,7 @@ https://drive.google.com/drive/folders/1ugZwc9GC4XBzgeqevQwpPMVN0A26MxRv?usp=dri
 
 The partial dataset contains the processed 3D deformation results for all trap-jaw ant snapping videos mentioned in the manuscript, micro-CT scans needed for certain display and analysis scripts, and select raw videos needed to run the example processing scripts.  
 
-The data should be downloaded and placed in a folder within the user's directory. ** `home_directory` in `hsflfm/config.py` must then be set to this folder to successfully run the code.** 
+The data should be downloaded and placed in a folder within the user's directory. **`home_directory` in `hsflfm/config.py` must then be set to this folder to successfully run the code.**
 
 We will add additional information here on how to organize future datasets for use with this repository. 
 
