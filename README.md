@@ -33,4 +33,4 @@ The data should be downloaded and placed in a folder within the user's directory
 We will add additional information here on how to organize future datasets for use with this repository. 
 
 ## Navigating repository
-This folder contains three subfolders of user-friendly scripts: 'calibration_scripts', 'processing_scripts', and 'analysis_scripts'. Each folder contains an individual README describing how to use the scripts. The underlying code package is inside the 'hsflfm' subfolder.
+This folder contains three subfolders of user-friendly scripts: 'calibration_scripts', 'processing_scripts', and 'analysis_scripts'. Each folder contains an individual README describing how to use the scripts. The underlying code package is inside the 'hsflfm' subfolder. When using our released dataset, the scripts in each subfolder are independent. For new datasets, calibration must be performed first, followed by processing and then analysis. 
