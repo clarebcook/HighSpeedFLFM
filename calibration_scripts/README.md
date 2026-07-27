@@ -1,4 +1,7 @@
 ## Camera calibration
+
+NOTE: while calibration will be required for future datasets and can be run here as an example, all the data associated with our manuscript has pre-saved calibration files, so this code is NOT needed to run the example processing and analysis scripts.   
+
 Prior to calibration, ensure steps in the base folder README have been followed to correctly set up environment and data organization.
 
 Calibration is completed by following the prompts in `run_calibration.ipynb`. Two steps in the process require the user to manually select points from images, which is done in a GUI by running `remove_identified_vertices.py` and `select_alignment_points.py`. The notebook will indicate at what point this needs to be completed, and allow the user to use example data to skip those steps.
