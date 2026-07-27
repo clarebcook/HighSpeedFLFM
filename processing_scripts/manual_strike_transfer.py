@@ -287,7 +287,7 @@ class FrameViewer(QtWidgets.QWidget):
                 points[i] = pixels
             strike_match_points[camera] = points
         A_cam_ant = self.aligner.stored_alignment_matrices[start_strike]
-        self.strike_A_cam_ant = np.linalg.matmul(A_cam_ant, A_cam2_to_cam1)
+        self.strike_A_cam_ant = np.matmul(A_cam_ant, A_cam2_to_cam1)
         # TODO: also handle here if start_strike didn't include all the numbers
         # update things...
         # point numbers might eventually need to be updated

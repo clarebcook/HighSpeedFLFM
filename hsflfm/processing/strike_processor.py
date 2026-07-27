@@ -59,7 +59,6 @@ new_keys = [
     "predicted_flow_vectors",
     "unfiltered_flow_vectors",
     "flow_vectors",
-    "iteration_losses",
     "threshold_loss",
     "error_metric",
 ]

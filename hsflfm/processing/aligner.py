@@ -547,7 +547,7 @@ class Aligner:
         self.rough_interstrike_alignment[int(strike_number)] = all_avg_diff
 
         A_cam_ant = self.stored_alignment_matrices[start_strike]
-        strike_A_cam_ant = np.linalg.matmul(A_cam_ant, A_cam2_to_cam1)
+        strike_A_cam_ant = np.matmul(A_cam_ant, A_cam2_to_cam1)
         self.stored_alignment_matrices[strike_number] = strike_A_cam_ant
 
         return (
@@ -770,7 +770,7 @@ class Aligner:
         )
 
         A_cam_ant = self.stored_alignment_matrices[start_strike]
-        strike_A_cam_ant = np.linalg.matmul(A_cam_ant, A_cam2_to_cam1)
+        strike_A_cam_ant = np.matmul(A_cam_ant, A_cam2_to_cam1)
 
         # # 2024/11/26
         # # this should be cleaned up. If strikes aren't prepared in order

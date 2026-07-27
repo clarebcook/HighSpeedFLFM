@@ -1,24 +1,36 @@
 name: hsflfm_cpu
+
 channels:
   - conda-forge
   - defaults
   - pytorch
+
 dependencies:
-  - mamba
-  - pytorch
-  - torchvision
-  - torchaudio
-  - cpuonly
-  - ipython
-  - scipy
-  - matplotlib
-  - opencv
-  - trimesh
-  - shapely
-  - plotly
-  - tqdm
-  - pandas
-  - xarray
-  - conda-forge::qtpy
-  - openpyxl
-  - dash
+  - python=3.11.15
+  - numpy=1.26.4
+  - pytorch=2.3.1
+  - torchvision=0.18.1
+  - torchaudio=2.3.1
+  - cpuonly=2.0
+
+  - ipython=9.15.0
+  - ipykernel=7.3.0
+
+  - scipy=1.15.2
+  - matplotlib=3.11.0
+  - opencv=4.8.1
+
+  - trimesh=4.12.2
+  - shapely=2.1.2
+  - plotly=6.9.0
+  - tqdm=4.69.1
+
+  - pandas=2.3.3
+  - xarray=2025.6.1
+
+  - qtpy=2.4.3
+  - pyside6=6.8.3
+
+  - openpyxl=3.1.5
+  - dash=4.4.1
+  - nbformat=5.10.4

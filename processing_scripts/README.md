@@ -1,4 +1,4 @@
-# Post-Calibration Scripts
+# Post-Calibration Processing Scripts
 
 This folder contains GUI tools for managing post-calibration point identification, alignment, and transfer across multiple ant strike recordings.
 
@@ -18,7 +18,9 @@ This folder contains GUI tools for managing post-calibration point identificatio
 
 ## Suggested Workflow
 
-For ant videos:
+> **Option1, Suggested demo:**  Pre-alignment is completed for all videos. Open ``process_from_pre_alignment.ipynb``. Set where to save results and run script. By default, the script will process all videos, taking about 5-10 seconds per video. 
+
+Option 2: For full processing of ant videos (not recommended for demo):
 1. Run `match_points_gui.py` to manually match alignment and painted points between the first frame of the perspective videos.
 2. Run `manual_strike_transfer.py` for the specimen.
 2a. From this GUI, launch the manual alignment GUI to ensure matched points are correctly aligned to the 3D ant model. 
@@ -33,12 +35,12 @@ For ant videos:
 
 
 
-For arbitrary sample without aligning to ant coordinate frame: 
+Option 3: For arbitrary sample without aligning to ant coordinate frame: 
 1. Run `match_points_gui.py` to match points between views.
 2. Modify filenames and run `process_without_alignment.ipynb`
 
 
-## Usage Guide
+## Full Usage Guide (not needed for simple demo)
 
 ### 1. Annotate Initial Points
 

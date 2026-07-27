@@ -174,5 +174,5 @@ def matmul(M, points):
 
     points = np.asarray(points)
     points = np.concatenate((points, np.ones((points.shape[0], 1))), axis=1) 
-    transformed_points = np.linalg.matmul(M, points.T).T[:, :3]
+    transformed_points = np.matmul(M, points.T).T[:, :3]
     return transformed_points
