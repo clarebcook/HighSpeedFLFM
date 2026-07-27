@@ -5,3 +5,4 @@ This folder contains several scripts which re-create figures from the paper and 
 - `condensed_results.ipynb`: Includes aggregate results from all videos plotted together to show spatial patterns. This will recreate results from Figures 5 and 6, in addition to other visualizations. 
 - `mandible_direction_comp.ipynb`: Compares strikes performed with different mandible orders. This recreates supplemental figures 5 and 6. 
 - `temporal_response.ipynb`: Plots displacement, velocity, acceleration, and jerk profiles for various regions of the ant gena. Recreates and Figure 7, A and supplemental figure 7. 
+- `megahertz_plots.ipynb`: Plot example results from video acquired at 1MHz. Recreates supplemental figure 4. 

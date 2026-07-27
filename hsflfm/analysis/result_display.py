@@ -368,6 +368,7 @@ class ResultPlotter:
             return video, crops
         return video
 
+
     # make video with arrows annotating point movement
     # this can likely be simplified using newer functions for getting point locations
     def get_arrow_video(
@@ -383,6 +384,7 @@ class ResultPlotter:
         return_crops=False,
         white_buffer=5,
         good_only=True,
+        clim=None, 
     ):
         if self.videos is None:
             self.load_video()
@@ -441,8 +443,9 @@ class ResultPlotter:
                 * 1e3,
                 cmap=cmap,
             )
-            plt.colorbar()
-            plt.imshow(frame, cmap="gray")
+            cbar = plt.colorbar()
+            cbar.set_label("z-displacement (um)", rotation=270)
+            plt.imshow(frame, cmap="gray", clim=clim)
             plt.xticks([])
             plt.yticks([])
 
